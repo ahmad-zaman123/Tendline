@@ -13,24 +13,38 @@ export default function App() {
   const [token, setToken] = useState(getStoredToken)
   const [user, setUser] = useState(null)
   const [checking, setChecking] = useState(Boolean(token))
-  const client = useMemo(() => createClient(token), [token])
+  const [unreachable, setUnreachable] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+  const [notice, setNotice] = useState('')
+  const client = useMemo(
+    () => createClient(token, () => {
+      signOut()
+      setNotice('Your session has expired. Please sign in again.')
+    }),
+    [token],
+  )
 
   useEffect(() => {
     if (!token || user) return undefined
     let current = true
+    setChecking(true)
+    setUnreachable(false)
     client
       .get('/me')
       .then((me) => { if (current) setUser(me) })
-      .catch(() => { if (current) signOut() })
+      // Only the server can end a session. A failed request just means we couldn't ask it.
+      .catch((err) => { if (current && err.status !== 401) setUnreachable(true) })
       .finally(() => { if (current) setChecking(false) })
     return () => { current = false }
-  }, [token])
+  }, [token, attempt])
 
   function signIn(session) {
     storeToken(session.token)
     setToken(session.token)
     setUser(session.user)
     setChecking(false)
+    setUnreachable(false)
+    setNotice('')
     navigate(homeFor(session.user))
   }
 
@@ -39,6 +53,8 @@ export default function App() {
     setToken(null)
     setUser(null)
     setChecking(false)
+    setUnreachable(false)
+    setNotice('')
     navigate('/login')
   }
 
@@ -46,6 +62,17 @@ export default function App() {
 
   function gated(role) {
     if (checking) return null
+    if (unreachable) {
+      return (
+        <main className="auth-screen">
+          <div className="auth-card">
+            <h1>Can&apos;t reach the server.</h1>
+            <p className="auth-subtitle">You&apos;re still signed in. Check your connection and try again.</p>
+            <button type="button" className="btn primary" onClick={() => setAttempt((count) => count + 1)}>Try again</button>
+          </div>
+        </main>
+      )
+    }
     if (!user) return <Navigate to="/login" replace />
     if (user.role !== role) return <Navigate to={homeFor(user)} replace />
     return (
@@ -63,7 +90,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Landing user={user} checking={checking} home={user && homeFor(user)} onSignOut={signOut} />} />
       <Route path="/demo" element={<Demo onSignOut={signOut} />} />
-      <Route path="/login" element={<Login user={user} onSignIn={signIn} home={user && homeFor(user)} />} />
+      <Route path="/login" element={<Login user={user} notice={notice} onSignIn={signIn} home={user && homeFor(user)} />} />
       <Route path="/chat" element={gated('customer')} />
       <Route path="/staff" element={gated('staff')} />
       <Route path="*" element={<Navigate to="/" replace />} />

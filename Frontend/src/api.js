@@ -19,20 +19,45 @@ export function storeToken(token) {
   }
 }
 
+const GENERIC_ERROR = 'Something went wrong. Please try again.'
+const FIELD_ERRORS = {
+  email: 'Please enter a valid email address.',
+  name: 'Please enter your name.',
+  password: 'Passwords must be between 8 and 200 characters.',
+  new_password: 'Passwords must be between 8 and 200 characters.',
+  message: 'Please enter a message of up to 2,000 characters.',
+}
+
+function failureMessage(detail) {
+  if (typeof detail === 'string') return detail
+  const field = Array.isArray(detail) ? detail[0]?.loc?.at(-1) : null
+  return FIELD_ERRORS[field] || GENERIC_ERROR
+}
+
 async function failure(response) {
   const data = await response.json().catch(() => null)
-  const error = new Error(typeof data?.detail === 'string' ? data.detail : 'Something went wrong. Please try again.')
+  const error = new Error(failureMessage(data?.detail))
   error.status = response.status
   return error
 }
 
-/** An API client bound to one session, so the split-screen demo can hold two at once. */
-export function createClient(token) {
-  function request(path, { method = 'GET', body } = {}) {
+/**
+ * An API client bound to one session, so the split-screen demo can hold two at once.
+ * `onExpired` runs when the server stops accepting the session's token.
+ */
+export function createClient(token, onExpired) {
+  async function request(path, { method = 'GET', body } = {}) {
     const headers = {}
     if (token) headers.Authorization = `Bearer ${token}`
     if (body) headers['Content-Type'] = 'application/json'
-    return fetch(`${API_URL}/api${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
+    let response
+    try {
+      response = await fetch(`${API_URL}/api${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
+    } catch {
+      throw new Error("Can't reach the server. Check your connection and try again.")
+    }
+    if (response.status === 401 && token) onExpired?.()
+    return response
   }
 
   async function json(path, options) {
@@ -53,7 +78,7 @@ export function createClient(token) {
       const decoder = new TextDecoder()
       let buffer = ''
       for (;;) {
-        const { value, done } = await reader.read()
+        const { value, done } = await reader.read().catch(() => ({ done: true }))
         if (done) throw new Error('The connection dropped. Please try again.')
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')

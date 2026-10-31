@@ -41,6 +41,7 @@ export default function StaffConsole({ client, refreshSignal }) {
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState('')
+  const [offline, setOffline] = useState(false)
   const [now, setNow] = useState(() => Date.now())
 
   const selected = queue?.find((item) => item.id === selectedId) || null
@@ -56,8 +57,10 @@ export default function StaffConsole({ client, refreshSignal }) {
         setQueue(items)
         setDetail(open)
         setNow(Date.now())
-      } catch (err) {
-        if (current) setError(err.message)
+        setOffline(false)
+      } catch {
+        // The next poll tries again, and clears this once it works.
+        if (current) setOffline(true)
       }
     }
     refresh()
@@ -109,7 +112,8 @@ export default function StaffConsole({ client, refreshSignal }) {
         {queue?.length === 0 && (
           <p className="queue-empty">Nothing waiting. Conversations the AI hands off appear here, oldest first.</p>
         )}
-        {!queue && <p className="queue-empty">Loading the queue…</p>}
+        {!queue && !offline && <p className="queue-empty">Loading the queue…</p>}
+        {offline && <p className="queue-offline" role="status">Can&apos;t reach the server. Still trying…</p>}
         <ul className="queue-list">
           {queue?.map((item) => (
             <li key={item.id}>

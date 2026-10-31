@@ -42,6 +42,7 @@ export default function Demo({ onSignOut }) {
   const [error, setError] = useState('')
   const [pane, setPane] = useState('customer')
   const [activity, setActivity] = useState(0)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => { document.title = 'Live demo — Tendline' }, [])
 
@@ -51,19 +52,29 @@ export default function Demo({ onSignOut }) {
       .then((next) => { if (current) setTokens(next) })
       .catch((err) => { if (current) setError(err.status === 429 ? err.message : 'The demo is not available right now.') })
     return () => { current = false }
-  }, [])
+  }, [attempt])
 
-  const clients = useMemo(
-    () => tokens && { customer: createClient(tokens.customer), staff: createClient(tokens.staff) },
-    [tokens],
-  )
-
-  function signOut() {
+  function clearStored() {
     try {
       sessionStorage.removeItem(STORAGE_KEY)
     } catch {
       // Nothing was stored, so there is nothing to clear.
     }
+  }
+
+  const clients = useMemo(() => {
+    if (!tokens) return null
+    // An expired demo has nothing worth keeping, so a new one takes its place.
+    const restart = () => {
+      clearStored()
+      setTokens(null)
+      setAttempt((count) => count + 1)
+    }
+    return { customer: createClient(tokens.customer, restart), staff: createClient(tokens.staff, restart) }
+  }, [tokens])
+
+  function signOut() {
+    clearStored()
     onSignOut()
   }
 

@@ -5,7 +5,7 @@ import Brand from '../components/Brand.jsx'
 import GoogleButton from '../components/GoogleButton.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 
-export default function Login({ user, home, onSignIn }) {
+export default function Login({ user, notice, home, onSignIn }) {
   const { state } = useLocation()
   const [isRegister, setIsRegister] = useState(Boolean(state?.register))
   const [name, setName] = useState('')
@@ -81,6 +81,7 @@ export default function Login({ user, home, onSignIn }) {
               placeholder={isRegister ? 'At least 8 characters' : undefined}
             />
           </label>
+          {notice && !error && <div className="error-banner" role="status">{notice}</div>}
           {error && <div className="error-banner" role="alert">{error}</div>}
           <button className="btn primary" type="submit" disabled={busy}>{busy ? 'One moment…' : isRegister ? 'Create account' : 'Sign in'}</button>
           <div className="auth-alt">

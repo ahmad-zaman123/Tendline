@@ -73,10 +73,19 @@ export default function CustomerChat({ client, onActivity }) {
       setConversation(await client.get(`/conversations/${result.conversation_id}`))
       onActivity?.()
     } catch (err) {
-      // Keep the customer's words, so they can retry instead of retyping.
-      setConversation(previous)
-      setDraft(text)
-      setError(err.message)
+      // The server may have saved the message before the connection dropped. Sending it again would repeat it.
+      const latest = await client.get('/conversations/latest').catch(() => null)
+      const saved = latest
+        && latest.messages.filter((message) => message.role === 'user').at(-1)?.text === text
+        && (latest.id !== previous?.id || latest.messages.length > (previous?.messages.length || 0))
+      if (saved) {
+        setConversation(latest)
+      } else {
+        // Keep the customer's words, so they can retry instead of retyping.
+        setConversation(previous)
+        setDraft(text)
+      }
+      setError(saved ? 'The connection dropped, but your message was saved.' : err.message)
     } finally {
       setSteps([])
     }
