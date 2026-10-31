@@ -187,6 +187,7 @@ ul, ol { list-style: none; }
   padding-top: 0.75rem; border-top: 1px solid var(--rule-soft);
 }
 .auth-alt > span { color: var(--muted); font-size: 0.88rem; }
+.auth-alt code { font-family: var(--mono); font-size: 0.8rem; color: var(--ink); overflow-wrap: anywhere; }
 
 /* ---------- workspace ---------- */
 .app-shell { height: 100dvh; display: flex; flex-direction: column; }

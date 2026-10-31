@@ -60,7 +60,7 @@ export default function Login({ user, home, onSignIn }) {
           {error && <div className="error-banner" role="alert">{error}</div>}
           <button className="btn primary" type="submit" disabled={busy}>{busy ? 'One moment…' : 'Sign in'}</button>
           <div className="auth-alt">
-            <span>Just looking around?</span>
+            <span>Just looking around? Sign in with password <code>demo1234</code> as <code>demo@deskhand.app</code> (customer) or <code>support@deskhand.app</code> (support team), or in one click:</span>
             <button type="button" className="link-btn" onClick={() => demo('customer')} disabled={busy}>Try it as a customer</button>
             <button type="button" className="link-btn" onClick={() => demo('staff')} disabled={busy}>Try it as a support agent</button>
             <Link to="/demo" className="link-btn">See both side by side</Link>

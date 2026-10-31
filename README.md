@@ -37,9 +37,9 @@ npm install
 npm run dev                         # http://127.0.0.1:5173
 ```
 
-Demo accounts use `DEMO_PASSWORD`: `sara@example.com` and `omar@example.com` are customers, and `agent@example.com` is staff.
+Local accounts use `DEMO_PASSWORD`: `sara@example.com` and `omar@example.com` are customers, and `agent@example.com` is staff.
 
-Set `DEMO_MODE=1` to turn on `/demo` and one-click demo sign-in. Each visitor gets a private customer and support agent who can only see each other, deleted after a day.
+Set `DEMO_MODE=1` to turn on `/demo`, one-click demo sign-in and two public logins with the password `demo1234`: `demo@deskhand.app` (customer) and `support@deskhand.app` (support team). Each sign-in gets a private customer and support agent who can only see each other, deleted after a day.
 
 Set `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` to turn on Google sign-in. It only ever creates customer accounts. Support team accounts sign in with a password.
 

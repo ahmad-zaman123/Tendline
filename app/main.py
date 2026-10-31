@@ -19,6 +19,9 @@ from .store import Store
 logger = logging.getLogger(__name__)
 
 TOKEN_LIFETIME = timedelta(hours=8)
+# Shown on the sign-in page. They open a private workspace, never a shared account.
+DEMO_LOGINS = {"demo@deskhand.app": "customer", "support@deskhand.app": "staff"}
+DEMO_LOGIN_PASSWORD = "demo1234"
 SAMPLE_REQUEST = "I want a refund for order A1001."
 SAMPLE_SUMMARY = "Customer requested a refund for order A1001."
 BUSY = "Too many requests. Please try again in a little while."
@@ -210,6 +213,9 @@ def create_app(
     @app.post("/api/login")
     def login(body: LoginRequest, request: Request):
         enforce_limit("login", client_ip(request))
+        role = DEMO_LOGINS.get(body.email.lower())
+        if demo_mode and role and body.password == DEMO_LOGIN_PASSWORD:
+            return new_demo_session(role, request)
         user = store.authenticate(body.email.lower(), body.password)
         if user is None:
             raise HTTPException(status_code=401, detail="Wrong email or password")
