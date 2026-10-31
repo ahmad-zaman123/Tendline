@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { createClient, getStoredToken, storeToken } from './api.js'
 import Landing from './pages/Landing.jsx'
 import Login from './pages/Login.jsx'
+import Workspace from './pages/Workspace.jsx'
 
 const homeFor = (user) => (user.role === 'staff' ? '/staff' : '/chat')
 
@@ -40,10 +41,19 @@ export default function App() {
     navigate('/login')
   }
 
+  function gated(role) {
+    if (checking) return null
+    if (!user) return <Navigate to="/login" replace />
+    if (user.role !== role) return <Navigate to={homeFor(user)} replace />
+    return <Workspace client={client} user={user} onSignOut={signOut} />
+  }
+
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login user={user} onSignIn={signIn} home={user && homeFor(user)} />} />
+      <Route path="/chat" element={gated('customer')} />
+      <Route path="/staff" element={gated('staff')} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
