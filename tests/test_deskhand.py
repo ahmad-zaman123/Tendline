@@ -2,6 +2,8 @@ import hashlib
 import json
 import math
 import re
+import time
+from datetime import timedelta
 from types import SimpleNamespace
 
 import httpx
@@ -15,7 +17,7 @@ from app.agent import HANDOFF_REPLY, MAX_STEPS
 from app.config import BASE_DIR
 from app.docs_index import DocsIndex, ingest
 from app.llm import GeminiClient, LLMReply, ToolCall
-from app.main import create_app
+from app.main import RATE_LIMITS, create_app
 from app.store import EMBEDDING_DIMENSIONS, MAX_FAILED_LOGINS, Store
 
 SECRET = "test-secret-that-is-long-enough-for-hs256"
@@ -74,7 +76,8 @@ def store(database_url):
     store.init_schema()
     with psycopg.connect(database_url, autocommit=True) as db:
         db.execute(
-            "TRUNCATE users, orders, conversations, messages, tool_calls, escalations, doc_passages CASCADE"
+            "TRUNCATE users, orders, conversations, messages, tool_calls, escalations, doc_passages, "
+            "rate_limits CASCADE"
         )
     store.seed(PASSWORD)
     ingest(store, HashEmbedder(), BASE_DIR / "data" / "docs")
@@ -369,6 +372,65 @@ def test_expired_demo_workspaces_are_deleted_and_real_accounts_kept(client, stor
     demo_pair(client)
     assert store.get_user(old["customer"]["user"]["email"]) is None
     assert store.get_user("sara@example.com") is not None
+
+
+def limited_client(store, llm, behind_proxy=False, **rules):
+    limits = {**RATE_LIMITS, **{name: (hits, timedelta(hours=1), f"{name} limit") for name, hits in rules.items()}}
+    app = create_app(
+        store=store, llm=llm, embedder=HashEmbedder(), jwt_secret=SECRET, demo_mode=True,
+        behind_proxy=behind_proxy, rate_limits=limits,
+    )
+    return TestClient(app)
+
+
+def test_chat_is_limited_per_user_before_calling_the_model(store, llm):
+    client = limited_client(store, llm, chat_user=1)
+    sara = login(client, "sara@example.com")
+    llm.replies += [LLMReply(text="Hello.")]
+    assert client.post("/api/chat", json={"message": "Hi"}, headers=sara).status_code == 200
+    blocked = client.post("/api/chat", json={"message": "Hi"}, headers=sara)
+    assert blocked.status_code == 429 and blocked.json()["detail"] == "chat_user limit"
+    assert int(blocked.headers["Retry-After"]) > 0
+    assert client.post("/api/chat/stream", json={"message": "Hi"}, headers=sara).status_code == 429
+    assert len(llm.histories) == 1
+    # One customer running out doesn't affect another.
+    llm.replies += [LLMReply(text="Hello.")]
+    assert client.post("/api/chat", json={"message": "Hi"}, headers=login(client, "omar@example.com")).status_code == 200
+
+
+def test_daily_chat_cap_covers_everyone(store, llm):
+    client = limited_client(store, llm, chat_all=1)
+    llm.replies += [LLMReply(text="Hello.")]
+    assert client.post("/api/chat", json={"message": "Hi"}, headers=login(client, "sara@example.com")).status_code == 200
+    assert client.post("/api/chat", json={"message": "Hi"}, headers=login(client, "omar@example.com")).status_code == 429
+
+
+def test_login_and_demo_are_limited_per_address(store, llm):
+    client = limited_client(store, llm, login=1, demo=1)
+    bad = {"email": "sara@example.com", "password": "wrong"}
+    assert client.post("/api/login", json=bad).status_code == 401
+    assert client.post("/api/login", json=bad).status_code == 429
+    assert client.post("/api/demo/pair").status_code == 200
+    assert client.post("/api/demo/pair").status_code == 429
+
+
+def test_rate_limit_window_resets(store):
+    assert store.hit_rate_limit("key", 1, timedelta(hours=1)) is None
+    assert store.hit_rate_limit("key", 1, timedelta(hours=1)) is not None
+    assert store.hit_rate_limit("other", 1, timedelta(hours=1)) is None
+    assert store.hit_rate_limit("short", 1, timedelta(milliseconds=1)) is None
+    time.sleep(0.05)
+    assert store.hit_rate_limit("short", 1, timedelta(milliseconds=1)) is None
+
+
+def test_forwarded_address_is_only_trusted_behind_a_proxy(store, llm):
+    direct = limited_client(store, llm, demo=1)
+    assert direct.post("/api/demo/pair", headers={"x-real-ip": "1.1.1.1"}).status_code == 200
+    assert direct.post("/api/demo/pair", headers={"x-real-ip": "2.2.2.2"}).status_code == 429
+    proxied = limited_client(store, llm, behind_proxy=True, demo=1)
+    assert proxied.post("/api/demo/pair", headers={"x-real-ip": "3.3.3.3"}).status_code == 200
+    assert proxied.post("/api/demo/pair", headers={"x-real-ip": "4.4.4.4"}).status_code == 200
+    assert proxied.post("/api/demo/pair", headers={"x-real-ip": "4.4.4.4"}).status_code == 429
 
 
 def test_demo_session_is_off_by_default(store, llm):

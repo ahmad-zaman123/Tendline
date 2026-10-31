@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 import jwt
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
 
@@ -21,6 +21,17 @@ logger = logging.getLogger(__name__)
 TOKEN_LIFETIME = timedelta(hours=8)
 SAMPLE_REQUEST = "I want a refund for order A1001."
 SAMPLE_SUMMARY = "Customer requested a refund for order A1001."
+BUSY = "Too many requests. Please try again in a little while."
+# Name: (allowed hits, window, message). Kept in Postgres because serverless instances share no memory.
+RATE_LIMITS = {
+    "login": (20, timedelta(minutes=15), "Too many sign-in attempts. Please try again in a few minutes."),
+    "demo": (20, timedelta(hours=1), BUSY),
+    "demo_all": (1000, timedelta(days=1), "The demo is full for today. Please try again tomorrow."),
+    "chat_user": (30, timedelta(hours=1), "You've sent a lot of messages. Please try again in a little while."),
+    "chat_ip": (60, timedelta(hours=1), BUSY),
+    "chat_all": (300, timedelta(days=1), "The AI assistant has reached its daily limit. Please try again tomorrow."),
+    "staff_reply": (60, timedelta(hours=1), BUSY),
+}
 
 
 class LoginRequest(BaseModel):
@@ -57,6 +68,8 @@ def create_app(
     embedder=None,
     jwt_secret=None,
     demo_mode=False,
+    behind_proxy=False,
+    rate_limits=RATE_LIMITS,
 ):
     if store is None:
         settings = load_settings()
@@ -65,6 +78,7 @@ def create_app(
         embedder = GeminiEmbedder(settings["gemini_api_key"])
         jwt_secret = settings["jwt_secret"]
         demo_mode = settings["demo_mode"]
+        behind_proxy = settings["behind_proxy"]
 
     agent = SupportAgent(llm, store, DocsIndex(store, embedder))
     app = FastAPI(title="Deskhand", docs_url="/api/docs", openapi_url="/api/openapi.json")
@@ -77,8 +91,29 @@ def create_app(
         )
         return {"token": token, "user": public_user(user)}
 
-    def new_demo_session(role):
-        customer, staff = store.create_demo_workspace()
+    def client_ip(request):
+        if behind_proxy and request.headers.get("x-real-ip"):
+            return request.headers["x-real-ip"]
+        return request.client.host if request.client else "unknown"
+
+    def enforce_limit(name, subject):
+        limit, window, message = rate_limits[name]
+        wait = store.hit_rate_limit(f"{name}:{subject}", limit, window)
+        if wait is not None:
+            raise HTTPException(status_code=429, detail=message, headers={"Retry-After": str(wait)})
+
+    def enforce_chat_limits(request, user):
+        enforce_limit("chat_user", user["email"])
+        enforce_limit("chat_ip", client_ip(request))
+        enforce_limit("chat_all", "all")
+
+    def new_demo_workspace(request):
+        enforce_limit("demo", client_ip(request))
+        enforce_limit("demo_all", "all")
+        return store.create_demo_workspace()
+
+    def new_demo_session(role, request):
+        customer, staff = new_demo_workspace(request)
         if role == "customer":
             return session_for(customer)
         # A support agent trying the demo alone has nobody to create a ticket for them.
@@ -149,24 +184,25 @@ def create_app(
         }
 
     @app.post("/api/login")
-    def login(body: LoginRequest):
+    def login(body: LoginRequest, request: Request):
+        enforce_limit("login", client_ip(request))
         user = store.authenticate(body.email.lower(), body.password)
         if user is None:
             raise HTTPException(status_code=401, detail="Wrong email or password")
         return session_for(user)
 
     @app.post("/api/demo/session")
-    def demo_session(body: DemoSessionRequest):
+    def demo_session(body: DemoSessionRequest, request: Request):
         # Off unless DEMO_MODE is set, because it signs in without a password.
         if not demo_mode:
             raise HTTPException(status_code=404, detail="Not found")
-        return new_demo_session(body.role)
+        return new_demo_session(body.role, request)
 
     @app.post("/api/demo/pair")
-    def demo_pair():
+    def demo_pair(request: Request):
         if not demo_mode:
             raise HTTPException(status_code=404, detail="Not found")
-        customer, staff = store.create_demo_workspace()
+        customer, staff = new_demo_workspace(request)
         return {"customer": session_for(customer), "staff": session_for(staff)}
 
     @app.get("/api/me")
@@ -174,13 +210,15 @@ def create_app(
         return public_user(user)
 
     @app.post("/api/chat")
-    def chat(body: ChatRequest, user=Depends(current_customer)):
+    def chat(body: ChatRequest, request: Request, user=Depends(current_customer)):
+        enforce_chat_limits(request, user)
         conversation = conversation_for_chat(body, user["email"])
         return turn_view(conversation, agent.handle_message(conversation, body.message))
 
     @app.post("/api/chat/stream")
-    def chat_stream(body: ChatRequest, user=Depends(current_customer)):
+    def chat_stream(body: ChatRequest, request: Request, user=Depends(current_customer)):
         """Same as /api/chat, with one JSON line per real agent step before the final result."""
+        enforce_chat_limits(request, user)
         conversation = conversation_for_chat(body, user["email"])
         events = queue.Queue()
 
@@ -232,6 +270,7 @@ def create_app(
 
     @app.post("/api/staff/conversations/{conversation_id}/reply")
     def staff_reply(conversation_id: str, body: StaffReply, staff=Depends(current_staff)):
+        enforce_limit("staff_reply", staff["email"])
         staff_conversation_or_404(conversation_id, staff)
         store.add_message(conversation_id, "staff", body.message)
         return {"ok": True}

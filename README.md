@@ -10,6 +10,7 @@ The demo company, Northwind Desks, and its data are made up.
 - **Real login:** scrypt-hashed passwords, signed session tokens, separate customer and staff roles, and a temporary lock after repeated failed sign-ins.
 - **Automatic hand-off:** model errors, search failures, empty replies and runaway tool loops all go to the staff queue.
 - **Audit trail:** every tool call and its result is stored for staff to review.
+- **Rate limits:** sign-ins, demo creation and chat are limited per visitor, with a daily cap on model use, stored in Postgres so they hold across serverless instances.
 - **Private demos:** one-click demo visitors get their own workspace, and every staff route checks it.
 - **Sources:** answers show the help-doc passages the agent retrieved.
 - **Model fallback:** if the main Gemini model is overloaded, rate-limited or retired, the request moves to a second model before handing off.

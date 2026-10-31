@@ -86,6 +86,11 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAU
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_pkey;
 ALTER TABLE orders ADD CONSTRAINT orders_pkey PRIMARY KEY (customer_email, id);
+CREATE TABLE IF NOT EXISTS rate_limits (
+    key TEXT PRIMARY KEY,
+    hits INTEGER NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL
+);
 """
 
 # Vector search can miss exact codes like part numbers, so %(query)s holds only those codes.
@@ -262,6 +267,20 @@ class Store:
         db.execute(f"DELETE FROM conversations WHERE customer_email IN {expired}", cutoff)
         db.execute(f"DELETE FROM orders WHERE customer_email IN {expired}", cutoff)
         db.execute("DELETE FROM users WHERE workspace IS NOT NULL AND created_at < %s", cutoff)
+        db.execute("DELETE FROM rate_limits WHERE expires_at < now()")
+
+    def hit_rate_limit(self, key, limit, window):
+        """Count one hit. Return seconds to wait if the limit is exceeded, otherwise None."""
+        with self._connect() as db:
+            row = db.execute(
+                "INSERT INTO rate_limits AS r (key, hits, expires_at) VALUES (%(key)s, 1, now() + %(window)s) "
+                "ON CONFLICT (key) DO UPDATE SET "
+                "hits = CASE WHEN r.expires_at <= now() THEN 1 ELSE r.hits + 1 END, "
+                "expires_at = CASE WHEN r.expires_at <= now() THEN EXCLUDED.expires_at ELSE r.expires_at END "
+                "RETURNING hits, EXTRACT(EPOCH FROM expires_at - now()) AS wait",
+                {"key": key, "window": window},
+            ).fetchone()
+        return max(1, int(row["wait"])) if row["hits"] > limit else None
 
     def get_order(self, order_id, customer_email):
         with self._connect() as db:

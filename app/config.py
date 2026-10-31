@@ -19,4 +19,6 @@ def load_settings():
         "gemini_api_key": os.environ["GEMINI_API_KEY"],
         "chat_models": list(dict.fromkeys(m for m in (chat_model, fallback_model) if m)),
         "demo_mode": os.environ.get("DEMO_MODE") == "1",
+        # Vercel sets the client address itself. Elsewhere the header could be forged.
+        "behind_proxy": bool(os.environ.get("VERCEL")),
     }

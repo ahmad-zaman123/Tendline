@@ -31,7 +31,7 @@ async function loadTokens() {
 
 let pendingTokens = null
 
-/** Reuses this tab's private workspace, so a reload doesn't lose the chat. */
+/** Reuses this tab's private workspace, so a reload doesn't lose the chat or use up the limit. */
 function demoTokens() {
   pendingTokens ??= loadTokens().finally(() => { pendingTokens = null })
   return pendingTokens
@@ -49,7 +49,7 @@ export default function Demo() {
     let current = true
     demoTokens()
       .then((next) => { if (current) setTokens(next) })
-      .catch(() => { if (current) setError('The demo is not available right now.') })
+      .catch((err) => { if (current) setError(err.status === 429 ? err.message : 'The demo is not available right now.') })
     return () => { current = false }
   }, [])
 
