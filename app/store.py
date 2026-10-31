@@ -264,7 +264,7 @@ class Store:
             self._delete_expired(db)
             accounts = []
             for prefix, role, name in (("customer", "customer", "Demo Customer"), ("support", "staff", "Demo Agent")):
-                email = f"{prefix}-{workspace}@deskhand.app"
+                email = f"{prefix}-{workspace}@tendline.app"
                 db.execute(
                     "INSERT INTO users (email, role, name, workspace) VALUES (%s, %s, %s, %s)",
                     (email, role, name, workspace),

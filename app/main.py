@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 TOKEN_LIFETIME = timedelta(hours=8)
 # Shown on the sign-in page. They open a private workspace, never a shared account.
-DEMO_LOGINS = {"demo@deskhand.app": "customer", "support@deskhand.app": "staff"}
+DEMO_LOGINS = {"demo@tendline.app": "customer", "support@tendline.app": "staff"}
 DEMO_LOGIN_PASSWORD = "demo1234"
 SAMPLE_REQUEST = "I want a refund for order A1001."
 SAMPLE_SUMMARY = "Customer requested a refund for order A1001."
@@ -108,7 +108,7 @@ def create_app(
         behind_proxy = settings["behind_proxy"]
 
     agent = SupportAgent(llm, store, DocsIndex(store, embedder))
-    app = FastAPI(title="Deskhand", docs_url="/api/docs", openapi_url="/api/openapi.json")
+    app = FastAPI(title="Tendline", docs_url="/api/docs", openapi_url="/api/openapi.json")
 
     def session_for(user):
         token = jwt.encode(

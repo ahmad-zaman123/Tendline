@@ -6,7 +6,7 @@ import CustomerChat from '../components/CustomerChat.jsx'
 import StaffConsole from '../components/StaffConsole.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 
-const STORAGE_KEY = 'deskhand-demo'
+const STORAGE_KEY = 'tendline-demo'
 
 function storedTokens() {
   try {
@@ -43,7 +43,7 @@ export default function Demo() {
   const [pane, setPane] = useState('customer')
   const [activity, setActivity] = useState(0)
 
-  useEffect(() => { document.title = 'Live demo — Deskhand' }, [])
+  useEffect(() => { document.title = 'Live demo — Tendline' }, [])
 
   useEffect(() => {
     let current = true

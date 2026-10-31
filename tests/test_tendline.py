@@ -512,7 +512,7 @@ def test_forwarded_address_is_only_trusted_behind_a_proxy(store, llm):
 
 
 def test_public_demo_logins_open_private_workspaces(client, staff, llm):
-    credentials = {"email": "demo@deskhand.app", "password": "demo1234"}
+    credentials = {"email": "demo@tendline.app", "password": "demo1234"}
     first = client.post("/api/login", json=credentials).json()
     second = client.post("/api/login", json=credentials).json()
     assert first["user"]["role"] == "customer" and first["user"]["demo"] is True
@@ -521,17 +521,17 @@ def test_public_demo_logins_open_private_workspaces(client, staff, llm):
     client.post("/api/chat", json={"message": "Refund"}, headers=bearer(first))
     assert client.get("/api/staff/escalations", headers=staff).json() == []
 
-    agent = client.post("/api/login", json={"email": "support@deskhand.app", "password": "demo1234"}).json()
+    agent = client.post("/api/login", json={"email": "support@tendline.app", "password": "demo1234"}).json()
     assert agent["user"]["role"] == "staff" and agent["user"]["demo"] is True
     queue = client.get("/api/staff/escalations", headers=bearer(agent)).json()
     assert [item["reason"] for item in queue] != ["demo"] and len(queue) == 1
 
 
 def test_public_demo_logins_need_the_right_password_and_demo_mode(client, store, llm):
-    wrong = {"email": "support@deskhand.app", "password": "wrong"}
+    wrong = {"email": "support@tendline.app", "password": "wrong"}
     assert client.post("/api/login", json=wrong).status_code == 401
     app = create_app(store=store, llm=llm, embedder=HashEmbedder(), jwt_secret=SECRET)
-    right = {"email": "support@deskhand.app", "password": "demo1234"}
+    right = {"email": "support@tendline.app", "password": "demo1234"}
     assert TestClient(app).post("/api/login", json=right).status_code == 401
 
 

@@ -11,9 +11,9 @@ function LogoMark() {
 
 export default function Brand() {
   return (
-    <Link to="/" className="brand" aria-label="Deskhand home">
+    <Link to="/" className="brand" aria-label="Tendline home">
       <LogoMark />
-      Deskhand
+      Tendline
     </Link>
   )
 }

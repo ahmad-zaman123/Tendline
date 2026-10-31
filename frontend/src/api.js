@@ -1,4 +1,4 @@
-const TOKEN_KEY = 'deskhand-token'
+const TOKEN_KEY = 'tendline-token'
 
 export function getStoredToken() {
   try {

@@ -4,7 +4,7 @@ import Brand from '../components/Brand.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 
 export default function Landing() {
-  useEffect(() => { document.title = 'Deskhand — AI support with a person one step away' }, [])
+  useEffect(() => { document.title = 'Tendline — AI support with a person one step away' }, [])
 
   return (
     <div className="landing">
@@ -20,7 +20,7 @@ export default function Landing() {
         <div>
           <h1 className="landing-title">AI support that knows when to hand off.</h1>
           <p className="landing-lede">
-            Deskhand answers from your help docs, checks real orders and passes anything it shouldn&apos;t
+            Tendline answers from your help docs, checks real orders and passes anything it shouldn&apos;t
             handle to your team, with the full history attached.
           </p>
           <div className="landing-cta">

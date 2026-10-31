@@ -1,4 +1,4 @@
-<h1 align="center">🤝 Deskhand</h1>
+<h1 align="center">🤝 Tendline</h1>
 
 <p align="center">
   <b>AI customer support that knows when to hand off.</b><br/>
@@ -29,7 +29,7 @@
 
 ---
 
-## 🧭 What is Deskhand?
+## 🧭 What is Tendline?
 
 An AI support agent for a made-up desk company, Northwind Desks. A chatbot that answers everything is easy to build and risky to run, so the interesting part here is the boundary: what the model may do on its own, and how the conversation reaches a person when it shouldn't.
 
@@ -115,8 +115,8 @@ With `DEMO_MODE=1`, use the password **`demo1234`** with:
 
 | Email | Role |
 |---|---|
-| **`demo@deskhand.app`** | Customer |
-| **`support@deskhand.app`** | Support team |
+| **`demo@tendline.app`** | Customer |
+| **`support@tendline.app`** | Support team |
 
 Each sign-in opens a new private workspace with sample orders, deleted after a day, so the password can be public. To see a ticket travel between both roles, open **`/demo`**, which shows them side by side.
 
@@ -221,7 +221,7 @@ Counters live in Postgres so they hold across serverless instances. Blocked requ
 ## 🗂️ Project structure
 
 ```
-deskhand/
+tendline/
 ├── app/
 │   ├── agent.py        tool loop, citations, hand-off rules
 │   ├── docs_index.py   splits and searches the help docs

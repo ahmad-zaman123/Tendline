@@ -8,7 +8,7 @@ import ThemeToggle from '../components/ThemeToggle.jsx'
 export default function Workspace({ client, user, onSignOut, onUserChanged }) {
   const staff = user.role === 'staff'
 
-  useEffect(() => { document.title = `${staff ? 'Support queue' : 'Support'} — Deskhand` }, [staff])
+  useEffect(() => { document.title = `${staff ? 'Support queue' : 'Support'} — Tendline` }, [staff])
 
   return (
     <div className="app-shell">
