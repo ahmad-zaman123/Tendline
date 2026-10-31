@@ -1,4 +1,8 @@
 import { useEffect, useRef } from 'react'
+import Markdown from 'react-markdown'
+
+// Model output can be steered by whoever is chatting, so links and images stay plain text.
+const ANSWER_ELEMENTS = ['p', 'strong', 'em', 'ul', 'ol', 'li', 'code', 'br']
 
 function Source({ source }) {
   const title = source.source.split('#')[1] || source.source
@@ -32,7 +36,13 @@ export default function TicketLog({ messages, viewer, steps = [], label }) {
         ) : (
           <article key={index} className={`entry entry-${message.role}`}>
             <h3 className="entry-author">{authors[message.role]}</h3>
-            <p className="entry-text">{message.text}</p>
+            {message.role === 'assistant' ? (
+              <div className="entry-text entry-answer">
+                <Markdown allowedElements={ANSWER_ELEMENTS} unwrapDisallowed>{message.text}</Markdown>
+              </div>
+            ) : (
+              <p className="entry-text">{message.text}</p>
+            )}
             {message.sources?.length > 0 && (
               <div className="sources">
                 <span>Answered from</span>
