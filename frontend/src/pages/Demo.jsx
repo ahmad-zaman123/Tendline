@@ -6,6 +6,37 @@ import CustomerChat from '../components/CustomerChat.jsx'
 import StaffConsole from '../components/StaffConsole.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 
+const STORAGE_KEY = 'deskhand-demo'
+
+function storedTokens() {
+  try {
+    return JSON.parse(sessionStorage.getItem(STORAGE_KEY))
+  } catch {
+    return null
+  }
+}
+
+async function loadTokens() {
+  const stored = storedTokens()
+  if (stored && await createClient(stored.staff).get('/me').catch(() => null)) return stored
+  const pair = await publicClient.post('/demo/pair')
+  const tokens = { customer: pair.customer.token, staff: pair.staff.token }
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(tokens))
+  } catch {
+    // Without storage a reload just starts a new workspace.
+  }
+  return tokens
+}
+
+let pendingTokens = null
+
+/** Reuses this tab's private workspace, so a reload doesn't lose the chat. */
+function demoTokens() {
+  pendingTokens ??= loadTokens().finally(() => { pendingTokens = null })
+  return pendingTokens
+}
+
 export default function Demo() {
   const [tokens, setTokens] = useState(null)
   const [error, setError] = useState('')
@@ -16,8 +47,8 @@ export default function Demo() {
 
   useEffect(() => {
     let current = true
-    Promise.all(['customer', 'staff'].map((role) => publicClient.post('/demo/session', { role })))
-      .then(([customer, staff]) => { if (current) setTokens({ customer: customer.token, staff: staff.token }) })
+    demoTokens()
+      .then((next) => { if (current) setTokens(next) })
       .catch(() => { if (current) setError('The demo is not available right now.') })
     return () => { current = false }
   }, [])

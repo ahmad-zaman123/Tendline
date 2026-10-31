@@ -281,6 +281,7 @@ ul, ol { list-style: none; }
 
 .case { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
 .case > .log { flex: 1 0 11rem; }
+.case-email { display: block; color: var(--muted); font-family: var(--mono); font-size: 0.75rem; font-weight: 400; overflow-wrap: anywhere; }
 .case-empty { padding: 1.5rem; color: var(--muted); }
 .pane > .case-empty { flex: 1; }
 .case-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex: none; padding: 0.85rem clamp(1rem, 3vw, 1.5rem); border-bottom: 1px solid var(--rule); }

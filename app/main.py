@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
 
-from .agent import SupportAgent
+from .agent import HANDOFF_REPLY, SupportAgent
 from .config import load_settings
 from .docs_index import DocsIndex
 from .llm import GeminiClient, GeminiEmbedder
@@ -19,7 +19,8 @@ from .store import Store
 logger = logging.getLogger(__name__)
 
 TOKEN_LIFETIME = timedelta(hours=8)
-DEMO_ACCOUNTS = {"customer": "sara@example.com", "staff": "agent@example.com"}
+SAMPLE_REQUEST = "I want a refund for order A1001."
+SAMPLE_SUMMARY = "Customer requested a refund for order A1001."
 
 
 class LoginRequest(BaseModel):
@@ -40,7 +41,23 @@ class StaffReply(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
 
 
-def create_app(store=None, llm=None, embedder=None, jwt_secret=None, demo_mode=False):
+def public_user(user):
+    return {
+        "email": user["email"],
+        "role": user["role"],
+        "name": user["name"],
+        "has_password": user["has_password"],
+        "demo": user["workspace"] is not None,
+    }
+
+
+def create_app(
+    store=None,
+    llm=None,
+    embedder=None,
+    jwt_secret=None,
+    demo_mode=False,
+):
     if store is None:
         settings = load_settings()
         store = Store(settings["database_url"])
@@ -58,7 +75,23 @@ def create_app(store=None, llm=None, embedder=None, jwt_secret=None, demo_mode=F
             jwt_secret,
             algorithm="HS256",
         )
-        return {"token": token, "user": user}
+        return {"token": token, "user": public_user(user)}
+
+    def new_demo_session(role):
+        customer, staff = store.create_demo_workspace()
+        if role == "customer":
+            return session_for(customer)
+        # A support agent trying the demo alone has nobody to create a ticket for them.
+        add_sample_ticket(customer["email"])
+        return session_for(staff)
+
+    def add_sample_ticket(customer_email):
+        conversation_id = store.create_conversation(customer_email)
+        store.add_message(conversation_id, "user", SAMPLE_REQUEST)
+        store.log_tool_call(
+            conversation_id, "escalate_to_human", {"reason": "refund_request", "summary": SAMPLE_SUMMARY}, {}
+        )
+        store.escalate(conversation_id, SAMPLE_SUMMARY, SAMPLE_SUMMARY, HANDOFF_REPLY)
 
     def current_user(authorization: str = Header(default="")):
         scheme, _, token = authorization.partition(" ")
@@ -90,8 +123,8 @@ def create_app(store=None, llm=None, embedder=None, jwt_secret=None, demo_mode=F
             raise HTTPException(status_code=404, detail="Conversation not found")
         return conversation
 
-    def conversation_or_404(conversation_id):
-        conversation = store.get_conversation(conversation_id)
+    def staff_conversation_or_404(conversation_id, staff):
+        conversation = store.get_staff_conversation(conversation_id, staff["workspace"])
         if conversation is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
         return conversation
@@ -127,11 +160,18 @@ def create_app(store=None, llm=None, embedder=None, jwt_secret=None, demo_mode=F
         # Off unless DEMO_MODE is set, because it signs in without a password.
         if not demo_mode:
             raise HTTPException(status_code=404, detail="Not found")
-        return session_for(store.get_user(DEMO_ACCOUNTS[body.role]))
+        return new_demo_session(body.role)
+
+    @app.post("/api/demo/pair")
+    def demo_pair():
+        if not demo_mode:
+            raise HTTPException(status_code=404, detail="Not found")
+        customer, staff = store.create_demo_workspace()
+        return {"customer": session_for(customer), "staff": session_for(staff)}
 
     @app.get("/api/me")
     def me(user=Depends(current_user)):
-        return user
+        return public_user(user)
 
     @app.post("/api/chat")
     def chat(body: ChatRequest, user=Depends(current_customer)):
@@ -177,28 +217,28 @@ def create_app(store=None, llm=None, embedder=None, jwt_secret=None, demo_mode=F
     def conversation_detail(conversation_id: str, user=Depends(current_customer)):
         return conversation_view(owned_conversation(conversation_id, user["email"]))
 
-    @app.get("/api/staff/escalations", dependencies=[Depends(current_staff)])
-    def escalations():
-        return store.list_escalations()
+    @app.get("/api/staff/escalations")
+    def escalations(staff=Depends(current_staff)):
+        return store.list_escalations(staff["workspace"])
 
-    @app.get("/api/staff/conversations/{conversation_id}", dependencies=[Depends(current_staff)])
-    def staff_conversation(conversation_id: str):
-        conversation = conversation_or_404(conversation_id)
+    @app.get("/api/staff/conversations/{conversation_id}")
+    def staff_conversation(conversation_id: str, staff=Depends(current_staff)):
+        conversation = staff_conversation_or_404(conversation_id, staff)
         return {
             **conversation_view(conversation),
             "customer_email": conversation["customer_email"],
             "tool_calls": store.get_tool_calls(conversation_id),
         }
 
-    @app.post("/api/staff/conversations/{conversation_id}/reply", dependencies=[Depends(current_staff)])
-    def staff_reply(conversation_id: str, body: StaffReply):
-        conversation_or_404(conversation_id)
+    @app.post("/api/staff/conversations/{conversation_id}/reply")
+    def staff_reply(conversation_id: str, body: StaffReply, staff=Depends(current_staff)):
+        staff_conversation_or_404(conversation_id, staff)
         store.add_message(conversation_id, "staff", body.message)
         return {"ok": True}
 
-    @app.post("/api/staff/escalations/{escalation_id}/resolve", dependencies=[Depends(current_staff)])
-    def resolve(escalation_id: int):
-        if not store.resolve_escalation(escalation_id):
+    @app.post("/api/staff/escalations/{escalation_id}/resolve")
+    def resolve(escalation_id: int, staff=Depends(current_staff)):
+        if not store.resolve_escalation(escalation_id, staff["workspace"]):
             raise HTTPException(status_code=404, detail="Open escalation not found")
         return {"ok": True}
 

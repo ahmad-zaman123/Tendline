@@ -303,12 +303,72 @@ def test_stream_reports_failures(client, sara, store, monkeypatch):
     assert events == [{"type": "error", "detail": "Something went wrong. Please try again."}]
 
 
-def test_demo_session_signs_in_only_demo_accounts(client):
-    body = client.post("/api/demo/session", json={"role": "staff"}).json()
-    assert body["user"]["email"] == "agent@example.com"
-    headers = {"Authorization": f"Bearer {body['token']}"}
-    assert client.get("/api/staff/escalations", headers=headers).status_code == 200
+def bearer(session):
+    return {"Authorization": f"Bearer {session['token']}"}
+
+
+def demo_pair(client):
+    body = client.post("/api/demo/pair").json()
+    return bearer(body["customer"]), bearer(body["staff"]), body
+
+
+def test_demo_session_creates_a_private_account(client):
+    body = client.post("/api/demo/session", json={"role": "customer"}).json()
+    assert body["user"]["demo"] is True and body["user"]["email"] != "sara@example.com"
     assert client.post("/api/demo/session", json={"role": "admin"}).status_code == 422
+
+
+def test_demo_staff_alone_gets_a_sample_ticket(client):
+    headers = bearer(client.post("/api/demo/session", json={"role": "staff"}).json())
+    queue = client.get("/api/staff/escalations", headers=headers).json()
+    assert len(queue) == 1 and queue[0]["customer_name"] == "Demo Customer"
+    detail = client.get(f"/api/staff/conversations/{queue[0]['conversation_id']}", headers=headers).json()
+    assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
+    assert detail["tool_calls"][0]["name"] == "escalate_to_human"
+
+
+def test_demo_customers_have_their_own_orders(client, store):
+    _, _, first = demo_pair(client)
+    _, _, second = demo_pair(client)
+    first_email, second_email = first["customer"]["user"]["email"], second["customer"]["user"]["email"]
+    assert store.get_order("A1001", first_email)["item"] == "Standing desk"
+    assert store.get_order("A1001", second_email)["item"] == "Standing desk"
+    assert store.get_order("B2001", first_email) is None
+
+
+def test_demo_workspaces_cannot_see_each_other_or_the_real_queue(client, sara, staff, llm):
+    first_customer, first_staff, _ = demo_pair(client)
+    _, second_staff, _ = demo_pair(client)
+    llm.replies += [
+        tool("escalate_to_human", reason="demo", summary="Demo ticket"),
+        tool("escalate_to_human", reason="real", summary="Real ticket"),
+    ]
+    demo_id = client.post("/api/chat", json={"message": "Refund"}, headers=first_customer).json()["conversation_id"]
+    real_id = client.post("/api/chat", json={"message": "Refund"}, headers=sara).json()["conversation_id"]
+
+    assert [i["reason"] for i in client.get("/api/staff/escalations", headers=first_staff).json()] == ["demo"]
+    assert client.get("/api/staff/escalations", headers=second_staff).json() == []
+    real_queue = client.get("/api/staff/escalations", headers=staff).json()
+    assert [i["reason"] for i in real_queue] == ["real"]
+
+    # Escalation ids are sequential, so every staff route has to check the workspace itself.
+    for outsider, conversation_id in ((second_staff, demo_id), (first_staff, real_id), (staff, demo_id)):
+        assert client.get(f"/api/staff/conversations/{conversation_id}", headers=outsider).status_code == 404
+        reply = client.post(f"/api/staff/conversations/{conversation_id}/reply", json={"message": "x"}, headers=outsider)
+        assert reply.status_code == 404
+    assert client.post(f"/api/staff/escalations/{real_queue[0]['id']}/resolve", headers=first_staff).status_code == 404
+    assert client.get("/api/staff/escalations", headers=staff).json()[0]["reason"] == "real"
+
+
+def test_expired_demo_workspaces_are_deleted_and_real_accounts_kept(client, store, database_url, llm):
+    customer, _, old = demo_pair(client)
+    llm.replies += [tool("escalate_to_human", reason="old", summary="Old")]
+    client.post("/api/chat", json={"message": "Refund"}, headers=customer)
+    with psycopg.connect(database_url, autocommit=True) as db:
+        db.execute("UPDATE users SET created_at = now() - interval '2 days' WHERE workspace IS NOT NULL")
+    demo_pair(client)
+    assert store.get_user(old["customer"]["user"]["email"]) is None
+    assert store.get_user("sara@example.com") is not None
 
 
 def test_demo_session_is_off_by_default(store, llm):

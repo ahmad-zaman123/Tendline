@@ -120,7 +120,7 @@ export default function StaffConsole({ client, refreshSignal }) {
                 onClick={() => { setSelectedId(item.id); setDetail(null); setDraft(''); setError('') }}
               >
                 <span className="queue-row">
-                  <strong>{item.customer_email}</strong>
+                  <strong>{item.customer_name}</strong>
                   <time dateTime={item.created_at}>{waited(item.created_at, now)}</time>
                 </span>
                 <span className="queue-reason">{SYSTEM_REASONS[item.reason] || item.reason}</span>
@@ -138,7 +138,7 @@ export default function StaffConsole({ client, refreshSignal }) {
           <>
             <header className="case-head">
               <div>
-                <h2>{selected.customer_email}</h2>
+                <h2>{selected.customer_name} <span className="case-email">{selected.customer_email}</span></h2>
                 <p>{selected.summary}</p>
               </div>
               <button type="button" className="btn outline small" onClick={resolve} disabled={Boolean(busy)}>

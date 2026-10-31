@@ -10,6 +10,7 @@ The demo company, Northwind Desks, and its data are made up.
 - **Real login:** scrypt-hashed passwords, signed session tokens, separate customer and staff roles, and a temporary lock after repeated failed sign-ins.
 - **Automatic hand-off:** model errors, search failures, empty replies and runaway tool loops all go to the staff queue.
 - **Audit trail:** every tool call and its result is stored for staff to review.
+- **Private demos:** one-click demo visitors get their own workspace, and every staff route checks it.
 - **Sources:** answers show the help-doc passages the agent retrieved.
 - **Model fallback:** if the main Gemini model is overloaded, rate-limited or retired, the request moves to a second model before handing off.
 - **Hybrid search:** pgvector handles reworded questions, and Postgres full-text search makes exact codes like part numbers rank first.
@@ -37,7 +38,7 @@ npm run dev                         # http://127.0.0.1:5173
 
 Demo accounts use `DEMO_PASSWORD`: `sara@example.com` and `omar@example.com` are customers, and `agent@example.com` is staff.
 
-Set `DEMO_MODE=1` to turn on one-click demo sign-in and `/demo`, which shows the customer and the support team side by side. All demo visitors share these accounts, so keep it off anywhere public.
+Set `DEMO_MODE=1` to turn on `/demo` and one-click demo sign-in. Each visitor gets a private customer and support agent who can only see each other, deleted after a day.
 
 ## Hosted database
 

@@ -2,9 +2,10 @@ import hashlib
 import hmac
 import json
 import os
+import secrets
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import psycopg
 from pgvector.psycopg import register_vector
@@ -15,6 +16,9 @@ EMBEDDING_DIMENSIONS = 768
 MAX_FAILED_LOGINS = 5
 RESOLVED_EVENT = "The support team closed this request. The AI assistant is back."
 LOGIN_LOCK = timedelta(minutes=15)
+# Longer than a session token lasts, so nobody loses a workspace they are still using.
+DEMO_LIFETIME = timedelta(days=1)
+USER_FIELDS = "email, role, name, workspace, password_hash IS NOT NULL AS has_password"
 
 SCHEMA = f"""
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -77,6 +81,11 @@ CREATE INDEX IF NOT EXISTS doc_passages_embedding_idx
 ALTER TABLE doc_passages ADD COLUMN IF NOT EXISTS search_vector tsvector
     GENERATED ALWAYS AS (to_tsvector('english', text)) STORED;
 CREATE INDEX IF NOT EXISTS doc_passages_search_idx ON doc_passages USING gin (search_vector);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS workspace TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_pkey;
+ALTER TABLE orders ADD CONSTRAINT orders_pkey PRIMARY KEY (customer_email, id);
 """
 
 # Vector search can miss exact codes like part numbers, so %(query)s holds only those codes.
@@ -110,6 +119,12 @@ SEED_ORDERS = [
     ("A1001", "sara@example.com", "Standing desk", "shipped", "2026-10-20", "TRK-55821"),
     ("A1002", "sara@example.com", "Monitor arm", "processing", "2026-10-28", None),
     ("B2001", "omar@example.com", "Office chair", "delivered", "2026-09-30", "TRK-41007"),
+]
+
+# Given to each new self-serve account, so questions about orders have something to find.
+SAMPLE_ORDERS = [
+    ("A1001", "Standing desk", "shipped", 11, "TRK-55821"),
+    ("A1002", "Monitor arm", "processing", 3, None),
 ]
 
 
@@ -175,7 +190,7 @@ class Store:
                 )
             for order in SEED_ORDERS:
                 db.execute(
-                    "INSERT INTO orders VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                    "INSERT INTO orders VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (customer_email, id) DO NOTHING",
                     order,
                 )
 
@@ -188,7 +203,7 @@ class Store:
         """Return the user, or None for a wrong password or a locked account."""
         with self._connect() as db:
             user = db.execute("SELECT * FROM users WHERE email = %s FOR UPDATE", (email,)).fetchone()
-            if user is None:
+            if user is None or user["password_hash"] is None:
                 verify_password(password, _DUMMY_HASH)
                 return None
             locked = user["locked_until"] and user["locked_until"] > datetime.now(timezone.utc)
@@ -196,7 +211,7 @@ class Store:
                 db.execute(
                     "UPDATE users SET failed_logins = 0, locked_until = NULL WHERE email = %s", (email,)
                 )
-                return {"email": user["email"], "role": user["role"], "name": user["name"]}
+                return db.execute(f"SELECT {USER_FIELDS} FROM users WHERE email = %s", (email,)).fetchone()
             if not locked:
                 failures = user["failed_logins"] + 1
                 lock_until = None
@@ -211,9 +226,42 @@ class Store:
 
     def get_user(self, email):
         with self._connect() as db:
-            return db.execute(
-                "SELECT email, role, name FROM users WHERE email = %s", (email,)
-            ).fetchone()
+            return db.execute(f"SELECT {USER_FIELDS} FROM users WHERE email = %s", (email,)).fetchone()
+
+    @staticmethod
+    def _add_sample_orders(db, email):
+        for order_id, item, status, age_days, tracking in SAMPLE_ORDERS:
+            db.execute(
+                "INSERT INTO orders VALUES (%s, %s, %s, %s, %s, %s)",
+                (order_id, email, item, status, date.today() - timedelta(days=age_days), tracking),
+            )
+
+    def create_demo_workspace(self):
+        """Create a private customer and staff member who can only see each other."""
+        workspace = secrets.token_hex(6)
+        with self._connect() as db:
+            self._delete_expired(db)
+            accounts = []
+            for prefix, role, name in (("customer", "customer", "Demo Customer"), ("support", "staff", "Demo Agent")):
+                email = f"{prefix}-{workspace}@deskhand.app"
+                db.execute(
+                    "INSERT INTO users (email, role, name, workspace) VALUES (%s, %s, %s, %s)",
+                    (email, role, name, workspace),
+                )
+                accounts.append(db.execute(f"SELECT {USER_FIELDS} FROM users WHERE email = %s", (email,)).fetchone())
+            self._add_sample_orders(db, accounts[0]["email"])
+        return accounts
+
+    @staticmethod
+    def _delete_expired(db):
+        expired = "(SELECT email FROM users WHERE workspace IS NOT NULL AND created_at < %s)"
+        cutoff = (datetime.now(timezone.utc) - DEMO_LIFETIME,)
+        conversations = f"(SELECT id FROM conversations WHERE customer_email IN {expired})"
+        for table in ("tool_calls", "messages", "escalations"):
+            db.execute(f"DELETE FROM {table} WHERE conversation_id IN {conversations}", cutoff)
+        db.execute(f"DELETE FROM conversations WHERE customer_email IN {expired}", cutoff)
+        db.execute(f"DELETE FROM orders WHERE customer_email IN {expired}", cutoff)
+        db.execute("DELETE FROM users WHERE workspace IS NOT NULL AND created_at < %s", cutoff)
 
     def get_order(self, order_id, customer_email):
         with self._connect() as db:
@@ -249,6 +297,15 @@ class Store:
             params.append(customer_email)
         with self._connect() as db:
             return db.execute(query, params).fetchone()
+
+    def get_staff_conversation(self, conversation_id, workspace):
+        """A conversation, only if its customer is in this staff member's workspace."""
+        with self._connect() as db:
+            return db.execute(
+                "SELECT c.* FROM conversations c JOIN users u ON u.email = c.customer_email "
+                "WHERE c.id = %s AND u.workspace IS NOT DISTINCT FROM %s::text",
+                (conversation_id, workspace),
+            ).fetchone()
 
     def latest_conversation(self, customer_email):
         with self._connect() as db:
@@ -298,23 +355,27 @@ class Store:
             )
             db.execute("UPDATE conversations SET status = 'escalated' WHERE id = %s", (conversation_id,))
 
-    def list_escalations(self):
+    def list_escalations(self, workspace=None):
         with self._connect() as db:
             return db.execute(
-                "SELECT e.id, e.conversation_id, e.reason, e.summary, e.created_at, c.customer_email, "
+                "SELECT e.id, e.conversation_id, e.reason, e.summary, e.created_at, c.customer_email, u.name AS customer_name, "
                 "(SELECT m.role FROM messages m WHERE m.conversation_id = e.conversation_id "
                 " ORDER BY m.id DESC LIMIT 1) AS last_role "
                 "FROM escalations e JOIN conversations c ON c.id = e.conversation_id "
-                "WHERE e.status = 'open' ORDER BY e.id"
+                "JOIN users u ON u.email = c.customer_email "
+                "WHERE e.status = 'open' AND u.workspace IS NOT DISTINCT FROM %s::text ORDER BY e.id",
+                (workspace,),
             ).fetchall()
 
-    def resolve_escalation(self, escalation_id):
+    def resolve_escalation(self, escalation_id, workspace=None):
         """Close an escalation and give the conversation back to the agent."""
         with self._connect() as db:
             row = db.execute(
-                "UPDATE escalations SET status = 'resolved' WHERE id = %s AND status = 'open' "
-                "RETURNING conversation_id",
-                (escalation_id,),
+                "UPDATE escalations e SET status = 'resolved' "
+                "FROM conversations c JOIN users u ON u.email = c.customer_email "
+                "WHERE e.id = %s AND e.status = 'open' AND c.id = e.conversation_id "
+                "AND u.workspace IS NOT DISTINCT FROM %s::text RETURNING e.conversation_id",
+                (escalation_id, workspace),
             ).fetchone()
             if row is None:
                 return False
