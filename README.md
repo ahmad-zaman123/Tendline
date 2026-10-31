@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black&style=flat-square" alt="React 18" />
   <img src="https://img.shields.io/badge/pgvector-Postgres-4169E1?logo=postgresql&logoColor=white&style=flat-square" alt="pgvector" />
   <img src="https://img.shields.io/badge/Gemini-3.5%20Flash--Lite-8E75B2?logo=googlegemini&logoColor=white&style=flat-square" alt="Gemini" />
-  <img src="https://img.shields.io/badge/tests-62%20passing-2ea44f?style=flat-square" alt="62 tests passing" />
+  <img src="https://img.shields.io/badge/tests-74%20passing-2ea44f?style=flat-square" alt="74 tests passing" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT license" /></a>
 </p>
 
@@ -106,7 +106,7 @@ Frontend (`Frontend/.env`): `VITE_API_URL` is the deployed backend's address, le
 <summary><b>🔑 Google sign-in</b> (optional, free)</summary>
 <br/>
 
-Adds a **Continue with Google** button to the sign-in page. New Google users get a customer account with sample orders. Support team accounts always sign in with a password, so staff access can never come from a Google account.
+Adds a **Continue with Google** button to the sign-in page. New Google users get the same account as anyone who signs up: sample orders and a private support view. Support team accounts always sign in with a password, so staff access can never come from a Google account.
 
 1. In [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials) create an **OAuth client ID** of type **Web application**. If asked, set up the consent screen first (External, app name, your email).
 2. Under **Authorized JavaScript origins** add your frontend origins, for example `http://localhost:5173` and `https://<your-app>.vercel.app`. No redirect URI is needed.
@@ -183,7 +183,7 @@ If the main Gemini model is overloaded, rate-limited or retired, the request mov
 scrypt-hashed passwords, signed session tokens, separate customer and staff roles, a temporary lock after repeated failed sign-ins, optional Google sign-in and password change.
 
 ### 🧪 Private demos
-Every demo visitor gets their own customer and agent who can only see each other. Every staff route checks that workspace, so guessing a ticket ID gets nothing.
+Every demo visitor gets their own customer and agent who can only see each other. Every staff route checks that workspace, so guessing a ticket ID gets nothing. Accounts from sign-up work the same way but last, with a menu item to switch between the customer and support views.
 
 </td>
 </tr>
@@ -202,8 +202,10 @@ Interactive docs at **`/api/docs`**.
 | `GET /api/staff/conversations/<id>` | Staff | Transcript and AI actions |
 | `POST /api/staff/conversations/<id>/reply` | Staff | Reply to the customer |
 | `POST /api/staff/escalations/<id>/resolve` | Staff | Close the ticket and return it to the AI |
+| `POST /api/register` | none | Create an account |
 | `POST /api/login`, `/api/auth/google` | none | Sign in |
 | `GET /api/me`, `POST /api/me/password` | Signed in | Your account and password |
+| `POST /api/me/switch` | Signed-up accounts | Switch between your customer and support views |
 | `POST /api/demo/session`, `/api/demo/pair` | none | Private demo workspaces, with `DEMO_MODE=1` |
 
 ## 🚦 Limits
@@ -211,6 +213,7 @@ Interactive docs at **`/api/docs`**.
 | Action | Limit |
 |---|---|
 | Sign-ins | 20 per 15 minutes, per IP address |
+| Sign-ups | 10 per hour per IP address, 500 per day overall |
 | New demo workspaces | 20 per hour per IP address, 1,000 per day overall |
 | Chat messages | 30 per hour per user, 60 per hour per IP address, 300 per day overall |
 | Staff replies | 60 per hour, per agent |
@@ -243,7 +246,7 @@ Tendline/
 │   │   └── store.py        schema and every SQL query
 │   ├── data/docs/          the help docs the agent answers from
 │   ├── scripts/dev_db.py   bundled local Postgres
-│   ├── tests/              62 tests against a real Postgres
+│   ├── tests/              74 tests against a real Postgres
 │   ├── asgi.py
 │   ├── requirements.txt
 │   └── vercel.json
