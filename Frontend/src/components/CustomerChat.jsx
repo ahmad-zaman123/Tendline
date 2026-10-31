@@ -87,7 +87,13 @@ export default function CustomerChat({ client, onActivity }) {
           <span className="handler-label">Handled by</span>
           <span className={`status status-${status.tone}`} role="status">{status.text}</span>
         </div>
-        <button type="button" className="btn outline small" onClick={() => setConversation(null)} disabled={sending || loading}>
+        <button
+          type="button"
+          className="btn outline small"
+          onClick={() => setConversation(null)}
+          disabled={sending || loading || escalated}
+          title={escalated ? 'You can start a new chat once the support team has finished this one.' : undefined}
+        >
           New chat
         </button>
       </header>

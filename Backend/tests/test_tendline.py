@@ -572,6 +572,34 @@ def test_registering_is_rate_limited(store, llm):
     assert blocked.status_code == 429 and blocked.json()["detail"] == "register limit"
 
 
+def test_new_message_during_a_handoff_stays_in_that_conversation(client, sara, staff, llm):
+    llm.replies += [tool("escalate_to_human", reason="refund", summary="Refund")]
+    first = client.post("/api/chat", json={"message": "Refund"}, headers=sara).json()["conversation_id"]
+    second = client.post("/api/chat", json={"message": "Any news?"}, headers=sara).json()
+    assert second["conversation_id"] == first and second["status"] == "escalated"
+    assert len(client.get("/api/staff/escalations", headers=staff).json()) == 1
+
+
+def test_latest_conversation_prefers_an_open_handoff(client, store, sara, llm):
+    llm.replies += [tool("escalate_to_human", reason="refund", summary="Refund")]
+    handed_off = client.post("/api/chat", json={"message": "Refund"}, headers=sara).json()["conversation_id"]
+    newer = store.create_conversation("sara@example.com")
+    assert newer != handed_off
+    assert client.get("/api/conversations/latest", headers=sara).json()["id"] == handed_off
+
+
+def test_daily_ai_limit_does_not_stop_messages_to_the_team(store, llm):
+    client = limited_client(store, llm, chat_all=1)
+    sara = login(client, "sara@example.com")
+    llm.replies += [tool("escalate_to_human", reason="refund", summary="Refund")]
+    conversation_id = client.post("/api/chat", json={"message": "Refund"}, headers=sara).json()["conversation_id"]
+    body = {"message": "Any news?", "conversation_id": conversation_id}
+    assert client.post("/api/chat", json=body, headers=sara).status_code == 200
+    omar = login(client, "omar@example.com")
+    blocked = client.post("/api/chat", json={"message": "Hi"}, headers=omar)
+    assert blocked.status_code == 429 and blocked.json()["detail"] == "chat_all limit"
+
+
 def limited_client(store, llm, behind_proxy=False, **rules):
     limits = {**RATE_LIMITS, **{name: (hits, timedelta(hours=1), f"{name} limit") for name, hits in rules.items()}}
     app = create_app(

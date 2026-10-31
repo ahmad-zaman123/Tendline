@@ -382,7 +382,9 @@ class Store:
     def latest_conversation(self, customer_email):
         with self._connect() as db:
             return db.execute(
-                "SELECT * FROM conversations WHERE customer_email = %s ORDER BY created_at DESC LIMIT 1",
+                # A conversation with the team comes first, so its replies always have somewhere to appear.
+                "SELECT * FROM conversations WHERE customer_email = %s "
+                "ORDER BY status = 'escalated' DESC, created_at DESC LIMIT 1",
                 (customer_email,),
             ).fetchone()
 

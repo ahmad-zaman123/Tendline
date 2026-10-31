@@ -149,10 +149,6 @@ def create_app(
         if wait is not None:
             raise HTTPException(status_code=429, detail=message, headers={"Retry-After": str(wait)})
 
-    def enforce_chat_limits(request, user):
-        enforce_limit("chat_user", user["email"])
-        enforce_limit("chat_ip", client_ip(request))
-        enforce_limit("chat_all", "all")
 
     def new_demo_workspace(request):
         enforce_limit("demo", client_ip(request))
@@ -218,9 +214,20 @@ def create_app(
             "messages": store.get_messages(conversation["id"]),
         }
 
-    def conversation_for_chat(body, email):
-        conversation_id = body.conversation_id or store.create_conversation(email)
-        return owned_conversation(conversation_id, email)
+    def conversation_for_chat(body, request, user):
+        email = user["email"]
+        if body.conversation_id:
+            conversation = owned_conversation(body.conversation_id, email)
+        else:
+            # A second tab or an old page must not start a chat that hides the team's reply.
+            latest = store.latest_conversation(email)
+            conversation = latest if latest and latest["status"] == "escalated" else None
+        enforce_limit("chat_user", email)
+        enforce_limit("chat_ip", client_ip(request))
+        # The model stays out of a hand-off, so the budget for its calls doesn't apply.
+        if conversation is None or conversation["status"] != "escalated":
+            enforce_limit("chat_all", "all")
+        return conversation or owned_conversation(store.create_conversation(email), email)
 
     def turn_view(conversation, result):
         return {
@@ -308,15 +315,13 @@ def create_app(
 
     @app.post("/api/chat")
     def chat(body: ChatRequest, request: Request, user=Depends(current_customer)):
-        enforce_chat_limits(request, user)
-        conversation = conversation_for_chat(body, user["email"])
+        conversation = conversation_for_chat(body, request, user)
         return turn_view(conversation, agent.handle_message(conversation, body.message))
 
     @app.post("/api/chat/stream")
     def chat_stream(body: ChatRequest, request: Request, user=Depends(current_customer)):
         """Same as /api/chat, with one JSON line per real agent step before the final result."""
-        enforce_chat_limits(request, user)
-        conversation = conversation_for_chat(body, user["email"])
+        conversation = conversation_for_chat(body, request, user)
         events = queue.Queue()
 
         def run():
