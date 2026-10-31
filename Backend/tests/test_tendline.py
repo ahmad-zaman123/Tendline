@@ -572,6 +572,38 @@ def test_registering_is_rate_limited(store, llm):
     assert blocked.status_code == 429 and blocked.json()["detail"] == "register limit"
 
 
+@pytest.mark.parametrize("message", ["   ", "a\x00b", "\ud800", "x" * 2001])
+def test_unusable_messages_are_rejected_before_anything_is_saved(client, sara, staff, store, message):
+    payload = json.dumps({"message": message})
+    headers = {**sara, "Content-Type": "application/json"}
+    assert client.post("/api/chat", content=payload, headers=headers).status_code == 422
+    assert store.latest_conversation("sara@example.com") is None
+
+
+@pytest.mark.parametrize("name", ["a\x00b", "\ud800"])
+def test_unusable_names_are_rejected(client, name):
+    payload = json.dumps({"email": "new@example.com", "name": name, "password": "a-new-password"})
+    response = client.post("/api/register", content=payload, headers={"Content-Type": "application/json"})
+    assert response.status_code == 422
+
+
+def test_unusable_conversation_id_is_rejected(client, sara):
+    payload = json.dumps({"message": "Hi", "conversation_id": "a\x00b"})
+    headers = {**sara, "Content-Type": "application/json"}
+    assert client.post("/api/chat", content=payload, headers=headers).status_code == 422
+
+
+def test_rejected_requests_do_not_repeat_the_input(client):
+    response = client.post("/api/login", json={"email": "x@example.com", "password": "secret-" + "x" * 300})
+    assert response.status_code == 422 and "secret-" not in response.text
+
+
+def test_messages_are_saved_without_surrounding_space(client, sara, llm):
+    llm.replies += [LLMReply(text="Hello.")]
+    conversation_id = client.post("/api/chat", json={"message": "  Hi  "}, headers=sara).json()["conversation_id"]
+    assert client.get(f"/api/conversations/{conversation_id}", headers=sara).json()["messages"][0]["text"] == "Hi"
+
+
 def test_new_message_during_a_handoff_stays_in_that_conversation(client, sara, staff, llm):
     llm.replies += [tool("escalate_to_human", reason="refund", summary="Refund")]
     first = client.post("/api/chat", json={"message": "Refund"}, headers=sara).json()["conversation_id"]
@@ -702,13 +734,13 @@ def test_demo_session_is_off_by_default(store, llm):
     assert TestClient(app).post("/api/demo/session", json={"role": "staff"}).status_code == 404
 
 
-def test_queue_is_oldest_first_and_flags_new_customer_messages(client, sara, staff, llm):
+def test_queue_is_oldest_first_and_flags_new_customer_messages(client, sara, omar, staff, llm):
     llm.replies += [
         tool("escalate_to_human", reason="first", summary="First"),
         tool("escalate_to_human", reason="second", summary="Second"),
     ]
     first = client.post("/api/chat", json={"message": "One"}, headers=sara).json()["conversation_id"]
-    client.post("/api/chat", json={"message": "Two"}, headers=sara)
+    client.post("/api/chat", json={"message": "Two"}, headers=omar)
     client.post("/api/chat", json={"message": "Still there?", "conversation_id": first}, headers=sara)
     queue = client.get("/api/staff/escalations", headers=staff).json()
     assert [item["reason"] for item in queue] == ["first", "second"]

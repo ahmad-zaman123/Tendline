@@ -7,9 +7,10 @@ from typing import Annotated, Literal
 
 import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, EmailStr, Field, StringConstraints
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import AfterValidator, BaseModel, EmailStr, Field, StringConstraints
 
 from .agent import HANDOFF_REPLY, SupportAgent
 from .config import load_settings
@@ -52,15 +53,26 @@ def verify_google_token(credential, client_id):
         raise ValueError("Invalid Google token") from error
 
 
+def storable(value):
+    # Postgres can't hold NUL characters, and lone surrogates can't be encoded at all.
+    if any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value):
+        raise ValueError("contains characters that can't be stored")
+    return value
+
+
+StorableText = Annotated[str, AfterValidator(storable)]
+Message = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000), AfterValidator(storable)]
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=1, max_length=200)
+    password: StorableText = Field(min_length=1, max_length=200)
 
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
-    password: str = Field(min_length=8, max_length=200)
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100), AfterValidator(storable)]
+    password: StorableText = Field(min_length=8, max_length=200)
 
 
 class GoogleRequest(BaseModel):
@@ -68,8 +80,8 @@ class GoogleRequest(BaseModel):
 
 
 class PasswordChange(BaseModel):
-    current_password: str | None = Field(default=None, max_length=200)
-    new_password: str = Field(min_length=8, max_length=200)
+    current_password: StorableText | None = Field(default=None, max_length=200)
+    new_password: StorableText = Field(min_length=8, max_length=200)
 
 
 class DemoSessionRequest(BaseModel):
@@ -77,12 +89,12 @@ class DemoSessionRequest(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=2000)
-    conversation_id: str | None = None
+    message: Message
+    conversation_id: StorableText | None = Field(default=None, max_length=64)
 
 
 class StaffReply(BaseModel):
-    message: str = Field(min_length=1, max_length=2000)
+    message: Message
 
 
 def public_user(user):
@@ -129,6 +141,12 @@ def create_app(
         allow_headers=["Authorization", "Content-Type"],
         expose_headers=["Retry-After"],
     )
+
+    @app.exception_handler(RequestValidationError)
+    def invalid_request(request, error):
+        # FastAPI's default repeats the input, which can be a password or text that can't be encoded.
+        detail = [{"type": e["type"], "loc": e["loc"], "msg": e["msg"]} for e in error.errors()]
+        return JSONResponse(status_code=422, content={"detail": detail})
 
     def session_for(user):
         token = jwt.encode(
