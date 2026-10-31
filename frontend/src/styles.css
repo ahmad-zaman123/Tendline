@@ -196,7 +196,6 @@ ul, ol { list-style: none; }
   background: var(--page); border-bottom: 1px solid var(--rule);
 }
 .topbar-right { display: flex; align-items: center; gap: 1rem; min-width: 0; }
-.who { color: var(--muted); font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .workspace { flex: 1; min-height: 0; display: flex; width: min(68rem, 100%); margin: 0 auto; }
 .pane { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--ground); }
 
@@ -248,6 +247,47 @@ ul, ol { list-style: none; }
 .google-or { display: flex; align-items: center; gap: 0.75rem; color: var(--muted); font-size: 0.8rem; }
 .google-or::before, .google-or::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
 
+/* ---------- profile menu ---------- */
+.pmenu { position: relative; }
+.ptrigger { display: flex; align-items: center; gap: 8px; border: 1px solid transparent; background: none; color: inherit; border-radius: 999px; padding: 2px 8px 2px 2px; cursor: pointer; font: inherit; }
+.ptrigger:hover, .ptrigger[aria-expanded="true"] { background: color-mix(in srgb, var(--ink) 7%, var(--page)); border-color: var(--rule); }
+.ptrigger .pname { font-weight: 600; white-space: nowrap; }
+.ptrigger .caret { color: var(--muted); transition: transform 0.15s; }
+.ptrigger[aria-expanded="true"] .caret { transform: rotate(180deg); }
+.avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; border-radius: 999px; color: #fff; font-weight: 700; letter-spacing: 0.02em; }
+.avatar.sm { width: 30px; height: 30px; font-size: 0.72rem; }
+.avatar.lg { width: 44px; height: 44px; font-size: 0.95rem; }
+.pdrop { position: absolute; right: 0; top: calc(100% + 8px); width: max-content; min-width: 240px; max-width: min(320px, calc(100vw - 32px)); background: var(--page); color: var(--ink); border: 1px solid var(--rule); border-radius: 3px; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.22); padding: 8px; display: grid; gap: 2px; z-index: 50; transform-origin: top right; animation: pdrop-pop 0.14s ease-out; text-align: left; font-size: 0.95rem; }
+@keyframes pdrop-pop { from { opacity: 0; transform: scale(0.96) translateY(-4px); } to { opacity: 1; transform: none; } }
+.pcardhead { display: flex; align-items: center; gap: 12px; padding: 8px 8px 10px; }
+.pwho { min-width: 0; display: grid; gap: 2px; }
+.pwho .name { font-weight: 700; }
+.pwho .hint { color: var(--muted); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.psep { height: 1px; background: var(--rule); margin: 4px 2px; }
+.pitem { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; background: none; color: var(--ink); text-decoration: none; border-radius: 3px; font: inherit; cursor: pointer; text-align: left; }
+.pitem svg { color: var(--muted); flex: none; }
+.pitem:hover, .pitem:focus-visible { background: color-mix(in srgb, var(--ink) 7%, var(--page)); outline: none; }
+.pitem.danger { color: var(--danger); }
+.pitem.danger svg { color: var(--danger); }
+.pitem.danger:hover { background: var(--danger-soft); }
+@media (max-width: 560px) { .ptrigger .pname, .ptrigger .caret { display: none; } .ptrigger { padding: 2px; } }
+
+/* ---------- change password dialog ---------- */
+.pmodal-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.pmodal { width: min(26rem, 100%); background: var(--page); color: var(--ink); border: 1px solid var(--rule); border-radius: 3px; padding: 1.5rem; display: grid; gap: 0.9rem; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3); animation: pdrop-pop 0.14s ease-out; text-align: left; }
+.pmodal h2 { margin: 0; font-family: var(--display); font-size: 1.3rem; }
+.pmodal-hint { margin: -0.4rem 0 0; color: var(--muted); font-size: 0.92rem; }
+.pwfield { display: grid; gap: 0.35rem; font-weight: 600; font-size: 0.88rem; }
+.pwwrap { position: relative; }
+.pwwrap input { box-sizing: border-box; width: 100%; min-height: 2.5rem; padding: 0.45rem 2.8rem 0.45rem 0.65rem; font: inherit; color: var(--ink); background: var(--page); border: 1px solid var(--ink-2); border-radius: 3px; }
+.pwwrap input:focus { outline: 2px solid var(--ink); outline-offset: 1px; }
+.pwreveal { position: absolute; right: 0.35rem; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; width: 2.1rem; height: 2.1rem; border: 0; background: none; color: var(--muted); cursor: pointer; border-radius: 3px; }
+.pwreveal:hover { color: var(--ink); }
+.pmodal-note { color: var(--muted); font-size: 0.85rem; }
+.pmodal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.3rem; }
+.pmodal .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.pnote { padding: 0.35rem 0.6rem 0.55rem; color: var(--muted); font-size: 0.85rem; }
 
 /* ---------- starters ---------- */
 .starter { flex: 1; min-height: 0; overflow-y: auto; padding: clamp(1.25rem, 5vh, 3rem) clamp(1rem, 3vw, 1.5rem); max-width: 44rem; width: 100%; }

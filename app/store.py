@@ -241,6 +241,10 @@ class Store:
                 (order_id, email, item, status, date.today() - timedelta(days=age_days), tracking),
             )
 
+    def set_password(self, email, password):
+        with self._connect() as db:
+            db.execute("UPDATE users SET password_hash = %s WHERE email = %s", (hash_password(password), email))
+
     def find_or_create_customer(self, email, name):
         """Return the account for a verified email, creating a passwordless customer if it is new."""
         with self._connect() as db:

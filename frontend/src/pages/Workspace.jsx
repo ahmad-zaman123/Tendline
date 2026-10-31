@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
 import Brand from '../components/Brand.jsx'
 import CustomerChat from '../components/CustomerChat.jsx'
+import ProfileMenu from '../components/ProfileMenu.jsx'
 import StaffConsole from '../components/StaffConsole.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 
-export default function Workspace({ client, user, onSignOut }) {
+export default function Workspace({ client, user, onSignOut, onUserChanged }) {
   const staff = user.role === 'staff'
 
   useEffect(() => { document.title = `${staff ? 'Support queue' : 'Support'} — Deskhand` }, [staff])
@@ -14,9 +15,13 @@ export default function Workspace({ client, user, onSignOut }) {
       <header className="topbar">
         <Brand />
         <div className="topbar-right">
-          <span className="who">{user.name}</span>
-          <button type="button" className="link-btn" onClick={onSignOut}>Sign out</button>
           <ThemeToggle />
+          <ProfileMenu
+            user={user}
+            onSignOut={onSignOut}
+            changePassword={(payload) => client.post('/me/password', payload)}
+            onPasswordChanged={onUserChanged}
+          />
         </div>
       </header>
       <main className="workspace">

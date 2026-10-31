@@ -46,7 +46,14 @@ export default function App() {
     if (checking) return null
     if (!user) return <Navigate to="/login" replace />
     if (user.role !== role) return <Navigate to={homeFor(user)} replace />
-    return <Workspace client={client} user={user} onSignOut={signOut} />
+    return (
+      <Workspace
+        client={client}
+        user={user}
+        onSignOut={signOut}
+        onUserChanged={() => client.get('/me').then(setUser).catch(() => {})}
+      />
+    )
   }
 
   return (

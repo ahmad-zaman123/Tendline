@@ -426,6 +426,32 @@ def test_google_sign_in_is_off_without_a_client_id(client):
     assert client.post("/api/auth/google", json={"credential": "token"}).status_code == 404
 
 
+def test_change_password(client, sara):
+    wrong = {"current_password": "not-it", "new_password": "a-new-password"}
+    assert client.post("/api/me/password", json=wrong, headers=sara).status_code == 400
+    short = {"current_password": PASSWORD, "new_password": "short"}
+    assert client.post("/api/me/password", json=short, headers=sara).status_code == 422
+    good = {"current_password": PASSWORD, "new_password": "a-new-password"}
+    assert client.post("/api/me/password", json=good, headers=sara).status_code == 200
+    assert client.post("/api/login", json={"email": "sara@example.com", "password": PASSWORD}).status_code == 401
+    assert client.post("/api/login", json={"email": "sara@example.com", "password": "a-new-password"}).status_code == 200
+
+
+def test_google_account_can_set_a_first_password(store, llm, client):
+    body = google_client(store, llm, {"email": "g@gmail.com", "email_verified": True}).post(
+        "/api/auth/google", json={"credential": "token"}
+    ).json()
+    assert client.post("/api/me/password", json={"new_password": "a-new-password"}, headers=bearer(body)).status_code == 200
+    assert client.get("/api/me", headers=bearer(client.post(
+        "/api/login", json={"email": "g@gmail.com", "password": "a-new-password"}
+    ).json())).json()["has_password"] is True
+
+
+def test_demo_account_cannot_set_a_password(client):
+    customer, _, _ = demo_pair(client)
+    assert client.post("/api/me/password", json={"new_password": "a-new-password"}, headers=customer).status_code == 403
+
+
 def limited_client(store, llm, behind_proxy=False, **rules):
     limits = {**RATE_LIMITS, **{name: (hits, timedelta(hours=1), f"{name} limit") for name, hits in rules.items()}}
     app = create_app(

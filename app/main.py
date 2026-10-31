@@ -55,6 +55,11 @@ class GoogleRequest(BaseModel):
     credential: str = Field(min_length=1, max_length=8000)
 
 
+class PasswordChange(BaseModel):
+    current_password: str | None = Field(default=None, max_length=200)
+    new_password: str = Field(min_length=8, max_length=200)
+
+
 class DemoSessionRequest(BaseModel):
     role: Literal["customer", "staff"]
 
@@ -245,6 +250,15 @@ def create_app(
     @app.get("/api/me")
     def me(user=Depends(current_user)):
         return public_user(user)
+
+    @app.post("/api/me/password")
+    def change_password(body: PasswordChange, user=Depends(current_user)):
+        if user["workspace"] is not None:
+            raise HTTPException(status_code=403, detail="Demo accounts have no password.")
+        if user["has_password"] and store.authenticate(user["email"], body.current_password or "") is None:
+            raise HTTPException(status_code=400, detail="Your current password is not correct.")
+        store.set_password(user["email"], body.new_password)
+        return {"ok": True}
 
     @app.post("/api/chat")
     def chat(body: ChatRequest, request: Request, user=Depends(current_customer)):
