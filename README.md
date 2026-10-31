@@ -24,7 +24,10 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/handoff.png" alt="The split-screen demo: a customer's refund request handed to the support team, who reply with the AI's actions listed beside the conversation" width="860" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/handoff-dark.png" />
+    <img src="docs/screenshots/handoff.png" alt="The split-screen demo: a customer's refund request handed to the support team, who reply with the AI's actions listed beside the conversation" width="860" />
+  </picture>
 </p>
 
 ---
@@ -38,7 +41,10 @@ An AI support agent for a made-up desk company, Northwind Desks. A chatbot that 
 | Policy questions from your help docs only, showing the passage it used | Orders for the signed-in customer, and nobody else | Refunds, cancellations, address changes and anything the docs don't cover go to a person |
 
 <p align="center">
-  <img src="docs/screenshots/answer.png" alt="An answer about a recalled part, with the help-doc passage it came from opened beneath it" width="640" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/answer-dark.png" />
+    <img src="docs/screenshots/answer.png" alt="An answer about a recalled part, with the help-doc passage it came from opened beneath it" width="640" />
+  </picture>
 </p>
 
 ## 🚀 Quick start
