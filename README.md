@@ -57,4 +57,4 @@ The tests run against a real local Postgres with a scripted model and embeddings
 
 ## Status
 
-Not deployed yet.
+Deploys to Vercel in `iad1`, next to the Neon database in `us-east-1`. Run `python -m app.ingest` against the database before the first deploy and after changing the help docs or schema.

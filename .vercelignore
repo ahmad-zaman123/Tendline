@@ -1,0 +1,10 @@
+.env
+.env.*
+.venv/
+.pgdata/
+.pytest_cache/
+__pycache__/
+tests/
+scripts/
+frontend/node_modules/
+frontend/dist/
