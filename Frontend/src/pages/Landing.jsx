@@ -12,6 +12,7 @@ export default function Landing() {
         <Brand />
         <nav className="landing-nav-links" aria-label="Primary">
           <Link to="/login" className="link-btn">Sign in</Link>
+          <Link to="/login" state={{ register: true }} className="link-btn">Sign up</Link>
           <ThemeToggle />
         </nav>
       </header>

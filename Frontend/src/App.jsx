@@ -42,6 +42,8 @@ export default function App() {
     navigate('/login')
   }
 
+  const switchView = () => client.post('/me/switch').then(signIn)
+
   function gated(role) {
     if (checking) return null
     if (!user) return <Navigate to="/login" replace />
@@ -51,6 +53,7 @@ export default function App() {
         client={client}
         user={user}
         onSignOut={signOut}
+        onSwitchView={switchView}
         onUserChanged={() => client.get('/me').then(setUser).catch(() => {})}
       />
     )
