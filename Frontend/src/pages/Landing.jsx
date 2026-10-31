@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import Brand from '../components/Brand.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 
-export default function Landing() {
+export default function Landing({ user, checking, home, onSignOut }) {
   useEffect(() => { document.title = 'Tendline — AI support with a person one step away' }, [])
 
   return (
@@ -11,7 +11,9 @@ export default function Landing() {
       <header className="landing-nav">
         <Brand />
         <nav className="landing-nav-links" aria-label="Primary">
-          <Link to="/login" className="link-btn">Sign in</Link>
+          {!checking && (user
+            ? <button type="button" className="link-btn" onClick={onSignOut}>Sign out</button>
+            : <Link to="/login" className="link-btn">Sign in</Link>)}
           <ThemeToggle />
         </nav>
       </header>
@@ -25,7 +27,9 @@ export default function Landing() {
           </p>
           <div className="landing-cta">
             <Link to="/demo" className="btn primary">Try the live demo</Link>
-            <Link to="/login" className="btn outline">Sign in</Link>
+            {!checking && (user
+              ? <Link to={home} className="btn outline">Open the app</Link>
+              : <Link to="/login" className="btn outline">Sign in</Link>)}
           </div>
           <dl className="landing-steps">
             <div><dt>Answers</dt><dd>From your docs only, showing the passage it used.</dd></div>

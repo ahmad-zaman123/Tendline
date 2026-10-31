@@ -37,7 +37,7 @@ function demoTokens() {
   return pendingTokens
 }
 
-export default function Demo() {
+export default function Demo({ onSignOut }) {
   const [tokens, setTokens] = useState(null)
   const [error, setError] = useState('')
   const [pane, setPane] = useState('customer')
@@ -58,12 +58,23 @@ export default function Demo() {
     [tokens],
   )
 
+  function signOut() {
+    try {
+      sessionStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // Nothing was stored, so there is nothing to clear.
+    }
+    onSignOut()
+  }
+
   return (
     <div className="app-shell demo-shell">
       <header className="topbar">
         <Brand />
         <div className="topbar-right">
-          <Link to="/login" className="link-btn">Sign in</Link>
+          {tokens
+            ? <button type="button" className="link-btn" onClick={signOut}>Sign out</button>
+            : <Link to="/login" className="link-btn">Sign in</Link>}
           <ThemeToggle />
         </div>
       </header>

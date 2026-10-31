@@ -61,8 +61,8 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route path="/demo" element={<Demo />} />
+      <Route path="/" element={<Landing user={user} checking={checking} home={user && homeFor(user)} onSignOut={signOut} />} />
+      <Route path="/demo" element={<Demo onSignOut={signOut} />} />
       <Route path="/login" element={<Login user={user} onSignIn={signIn} home={user && homeFor(user)} />} />
       <Route path="/chat" element={gated('customer')} />
       <Route path="/staff" element={gated('staff')} />
