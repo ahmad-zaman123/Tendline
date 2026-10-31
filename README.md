@@ -6,12 +6,13 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/ahmad-zaman123/Tendline/actions/workflows/ci.yml"><img src="https://github.com/ahmad-zaman123/Tendline/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://tendline-alpha.vercel.app"><img src="https://img.shields.io/badge/live%20demo-tendline--alpha.vercel.app-000?logo=vercel&logoColor=white&style=flat-square" alt="Live demo" /></a>
   <img src="https://img.shields.io/badge/FastAPI-0.162-009688?logo=fastapi&logoColor=white&style=flat-square" alt="FastAPI" />
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black&style=flat-square" alt="React 18" />
   <img src="https://img.shields.io/badge/pgvector-Postgres-4169E1?logo=postgresql&logoColor=white&style=flat-square" alt="pgvector" />
   <img src="https://img.shields.io/badge/Gemini-3.5%20Flash--Lite-8E75B2?logo=googlegemini&logoColor=white&style=flat-square" alt="Gemini" />
-  <img src="https://img.shields.io/badge/tests-74%20passing-2ea44f?style=flat-square" alt="74 tests passing" />
+  <img src="https://img.shields.io/badge/tests-86%20passing-2ea44f?style=flat-square" alt="86 tests passing" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT license" /></a>
 </p>
 
@@ -221,7 +222,7 @@ Interactive docs at **`/api/docs`**.
 | Sign-ins | 20 per 15 minutes, per IP address |
 | Sign-ups | 10 per hour per IP address, 500 per day overall |
 | New demo workspaces | 20 per hour per IP address, 1,000 per day overall |
-| Chat messages | 30 per hour per user, 60 per hour per IP address, 300 per day overall |
+| Chat messages | 30 per hour per user and 60 per hour per IP address. Messages the AI answers also share a limit of 300 per day overall. |
 | Staff replies | 60 per hour, per agent |
 
 Counters live in Postgres so they hold across serverless instances. Blocked requests get a `429` with `Retry-After`.
@@ -252,7 +253,7 @@ Tendline/
 │   │   └── store.py        schema and every SQL query
 │   ├── data/docs/          the help docs the agent answers from
 │   ├── scripts/dev_db.py   bundled local Postgres
-│   ├── tests/              74 tests against a real Postgres
+│   ├── tests/              86 tests against a real Postgres
 │   ├── asgi.py
 │   ├── requirements.txt
 │   └── vercel.json
