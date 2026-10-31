@@ -6,12 +6,18 @@
 </p>
 
 <p align="center">
+  <a href="https://tendline-alpha.vercel.app"><img src="https://img.shields.io/badge/live%20demo-tendline--alpha.vercel.app-000?logo=vercel&logoColor=white&style=flat-square" alt="Live demo" /></a>
   <img src="https://img.shields.io/badge/FastAPI-0.162-009688?logo=fastapi&logoColor=white&style=flat-square" alt="FastAPI" />
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black&style=flat-square" alt="React 18" />
   <img src="https://img.shields.io/badge/pgvector-Postgres-4169E1?logo=postgresql&logoColor=white&style=flat-square" alt="pgvector" />
   <img src="https://img.shields.io/badge/Gemini-3.5%20Flash--Lite-8E75B2?logo=googlegemini&logoColor=white&style=flat-square" alt="Gemini" />
   <img src="https://img.shields.io/badge/tests-74%20passing-2ea44f?style=flat-square" alt="74 tests passing" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT license" /></a>
+</p>
+
+<p align="center">
+  <a href="https://tendline-alpha.vercel.app"><b>Live demo → tendline-alpha.vercel.app</b></a><br/>
+  <sub>Click <b>Try the live demo</b> to play the customer and the support team side by side. No sign-up needed.</sub>
 </p>
 
 <p align="center">
