@@ -14,7 +14,9 @@ const STARTERS = [
 function handler(conversation) {
   const messages = conversation?.messages || []
   if (conversation?.status !== 'escalated') return { tone: 'ai', text: 'AI assistant' }
-  return messages.some((message) => message.role === 'staff')
+  // The AI's hand-off message is its last, so only replies after it answer this request.
+  const handedOffAt = messages.map((message) => message.role).lastIndexOf('assistant')
+  return messages.slice(handedOffAt + 1).some((message) => message.role === 'staff')
     ? { tone: 'person', text: 'Support team replied' }
     : { tone: 'waiting', text: 'Waiting for the support team' }
 }
