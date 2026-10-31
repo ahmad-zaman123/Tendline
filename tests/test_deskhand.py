@@ -374,6 +374,58 @@ def test_expired_demo_workspaces_are_deleted_and_real_accounts_kept(client, stor
     assert store.get_user("sara@example.com") is not None
 
 
+def google_client(store, llm, claims):
+    def verify(credential, client_id):
+        assert client_id == "client-id"
+        if claims is None:
+            raise ValueError("bad token")
+        return claims
+
+    app = create_app(
+        store=store, llm=llm, embedder=HashEmbedder(), jwt_secret=SECRET,
+        google_client_id="client-id", verify_google=verify,
+    )
+    return TestClient(app)
+
+
+def test_google_sign_in_creates_a_customer_with_sample_orders(store, llm):
+    claims = {"email": "New.Person@Gmail.com", "email_verified": True, "name": "New Person"}
+    client = google_client(store, llm, claims)
+    body = client.post("/api/auth/google", json={"credential": "token"}).json()
+    assert body["user"] == {
+        "email": "new.person@gmail.com", "role": "customer", "name": "New Person",
+        "has_password": False, "demo": False,
+    }
+    assert store.get_order("A1001", "new.person@gmail.com") is not None
+    # Signing in again finds the same account rather than failing or duplicating orders.
+    assert client.post("/api/auth/google", json={"credential": "token"}).status_code == 200
+    assert len(store.list_orders("new.person@gmail.com")) == 2
+
+
+def test_google_account_cannot_sign_in_with_a_password(store, llm, client):
+    google_client(store, llm, {"email": "g@gmail.com", "email_verified": True}).post(
+        "/api/auth/google", json={"credential": "token"}
+    )
+    assert client.post("/api/login", json={"email": "g@gmail.com", "password": "anything"}).status_code == 401
+
+
+def test_google_never_grants_staff_access(store, llm):
+    client = google_client(store, llm, {"email": "agent@example.com", "email_verified": True})
+    assert client.post("/api/auth/google", json={"credential": "token"}).status_code == 403
+
+
+def test_google_rejects_unverified_and_invalid_tokens(store, llm):
+    unverified = google_client(store, llm, {"email": "x@gmail.com", "email_verified": False})
+    assert unverified.post("/api/auth/google", json={"credential": "token"}).status_code == 401
+    assert store.get_user("x@gmail.com") is None
+    invalid = google_client(store, llm, None)
+    assert invalid.post("/api/auth/google", json={"credential": "token"}).status_code == 401
+
+
+def test_google_sign_in_is_off_without_a_client_id(client):
+    assert client.post("/api/auth/google", json={"credential": "token"}).status_code == 404
+
+
 def limited_client(store, llm, behind_proxy=False, **rules):
     limits = {**RATE_LIMITS, **{name: (hits, timedelta(hours=1), f"{name} limit") for name, hits in rules.items()}}
     app = create_app(

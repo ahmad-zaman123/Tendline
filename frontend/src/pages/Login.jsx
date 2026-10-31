@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { publicClient } from '../api.js'
 import Brand from '../components/Brand.jsx'
+import GoogleButton from '../components/GoogleButton.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 
 export default function Login({ user, home, onSignIn }) {
@@ -11,6 +12,10 @@ export default function Login({ user, home, onSignIn }) {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => { document.title = 'Sign in — Deskhand' }, [])
+
+  const onGoogleCredential = useCallback((credential) => {
+    run(() => publicClient.post('/auth/google', { credential }))
+  }, [])
 
   if (user) return <Navigate to={home} replace />
 
@@ -43,6 +48,7 @@ export default function Login({ user, home, onSignIn }) {
         <form className="auth-card" onSubmit={submit}>
           <h1>Back to the desk.</h1>
           <p className="auth-subtitle">Sign in to your support conversations.</p>
+          <GoogleButton onCredential={onGoogleCredential} onError={setError} busy={busy} />
           <label className="field">
             <span>Email</span>
             <input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />

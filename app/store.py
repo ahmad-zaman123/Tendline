@@ -241,6 +241,18 @@ class Store:
                 (order_id, email, item, status, date.today() - timedelta(days=age_days), tracking),
             )
 
+    def find_or_create_customer(self, email, name):
+        """Return the account for a verified email, creating a passwordless customer if it is new."""
+        with self._connect() as db:
+            created = db.execute(
+                "INSERT INTO users (email, role, name) VALUES (%s, 'customer', %s) "
+                "ON CONFLICT (email) DO NOTHING RETURNING email",
+                (email, name),
+            ).fetchone()
+            if created:
+                self._add_sample_orders(db, email)
+            return db.execute(f"SELECT {USER_FIELDS} FROM users WHERE email = %s", (email,)).fetchone()
+
     def create_demo_workspace(self):
         """Create a private customer and staff member who can only see each other."""
         workspace = secrets.token_hex(6)

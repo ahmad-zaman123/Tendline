@@ -34,9 +34,25 @@ RATE_LIMITS = {
 }
 
 
+def verify_google_token(credential, client_id):
+    """Return the claims of a Google ID token, checking its signature, audience and expiry."""
+    from google.auth.exceptions import GoogleAuthError
+    from google.auth.transport import requests
+    from google.oauth2 import id_token
+
+    try:
+        return id_token.verify_oauth2_token(credential, requests.Request(), client_id)
+    except (ValueError, GoogleAuthError) as error:
+        raise ValueError("Invalid Google token") from error
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=200)
+
+
+class GoogleRequest(BaseModel):
+    credential: str = Field(min_length=1, max_length=8000)
 
 
 class DemoSessionRequest(BaseModel):
@@ -68,6 +84,8 @@ def create_app(
     embedder=None,
     jwt_secret=None,
     demo_mode=False,
+    google_client_id="",
+    verify_google=verify_google_token,
     behind_proxy=False,
     rate_limits=RATE_LIMITS,
 ):
@@ -78,6 +96,7 @@ def create_app(
         embedder = GeminiEmbedder(settings["gemini_api_key"])
         jwt_secret = settings["jwt_secret"]
         demo_mode = settings["demo_mode"]
+        google_client_id = settings["google_client_id"]
         behind_proxy = settings["behind_proxy"]
 
     agent = SupportAgent(llm, store, DocsIndex(store, embedder))
@@ -204,6 +223,24 @@ def create_app(
             raise HTTPException(status_code=404, detail="Not found")
         customer, staff = new_demo_workspace(request)
         return {"customer": session_for(customer), "staff": session_for(staff)}
+
+    @app.post("/api/auth/google")
+    def google_sign_in(body: GoogleRequest, request: Request):
+        if not google_client_id:
+            raise HTTPException(status_code=404, detail="Not found")
+        enforce_limit("login", client_ip(request))
+        try:
+            claims = verify_google(body.credential, google_client_id)
+        except ValueError:
+            raise HTTPException(status_code=401, detail="Google sign-in could not be verified. Please try again.")
+        email = str(claims.get("email") or "").lower()
+        if not email or not claims.get("email_verified"):
+            raise HTTPException(status_code=401, detail="Google did not confirm this email address.")
+        user = store.find_or_create_customer(email, str(claims.get("name") or email.split("@")[0]))
+        # Staff access must never come from a Google account.
+        if user["role"] != "customer":
+            raise HTTPException(status_code=403, detail="Support team accounts sign in with a password.")
+        return session_for(user)
 
     @app.get("/api/me")
     def me(user=Depends(current_user)):

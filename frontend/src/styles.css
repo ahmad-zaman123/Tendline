@@ -236,6 +236,19 @@ ul, ol { list-style: none; }
 .steps .is-current { color: var(--ink); font-weight: 500; }
 .steps .is-current::before { content: "● "; color: var(--ai); animation: pulse 1.2s ease-in-out infinite; }
 
+/* Google sign-in (shown only when VITE_GOOGLE_CLIENT_ID is set) */
+.google-signin { display: grid; gap: 0.9rem; }
+.google-wrap { position: relative; }
+.google-wrap.is-loading { opacity: 0.6; }
+.google-wrap.is-busy .google-overlay { pointer-events: none; }
+.google-wrap.is-busy .google-btn { opacity: 0.7; }
+.google-btn { width: 100%; height: 40px; min-height: 40px; gap: 0.6rem; font-weight: 600; }
+.google-wrap:hover .google-btn { border-color: var(--ink); }
+.google-overlay { position: absolute; inset: 0; display: flex; justify-content: center; opacity: 0; overflow: hidden; }
+.google-or { display: flex; align-items: center; gap: 0.75rem; color: var(--muted); font-size: 0.8rem; }
+.google-or::before, .google-or::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+
+
 /* ---------- starters ---------- */
 .starter { flex: 1; min-height: 0; overflow-y: auto; padding: clamp(1.25rem, 5vh, 3rem) clamp(1rem, 3vw, 1.5rem); max-width: 44rem; width: 100%; }
 .starter-org { color: var(--muted); font-family: var(--mono); font-size: 0.8rem; margin-bottom: 0.4rem; }

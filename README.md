@@ -41,6 +41,8 @@ Demo accounts use `DEMO_PASSWORD`: `sara@example.com` and `omar@example.com` are
 
 Set `DEMO_MODE=1` to turn on `/demo` and one-click demo sign-in. Each visitor gets a private customer and support agent who can only see each other, deleted after a day.
 
+Set `GOOGLE_CLIENT_ID` and `VITE_GOOGLE_CLIENT_ID` to turn on Google sign-in. It only ever creates customer accounts. Support team accounts sign in with a password.
+
 ## Hosted database
 
 Create a Postgres database with pgvector (Neon works), set `DATABASE_URL` to its connection string, and run `python -m app.ingest`.
