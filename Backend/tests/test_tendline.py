@@ -394,7 +394,7 @@ def test_google_sign_in_creates_a_customer_with_sample_orders(store, llm):
     body = client.post("/api/auth/google", json={"credential": "token"}).json()
     assert body["user"] == {
         "email": "new.person@gmail.com", "role": "customer", "name": "New Person",
-        "has_password": False, "demo": False,
+        "has_password": False, "demo": False, "can_switch": True,
     }
     assert store.get_order("A1001", "new.person@gmail.com") is not None
     # Signing in again finds the same account rather than failing or duplicating orders.
@@ -450,6 +450,126 @@ def test_google_account_can_set_a_first_password(store, llm, client):
 def test_demo_account_cannot_set_a_password(client):
     customer, _, _ = demo_pair(client)
     assert client.post("/api/me/password", json={"new_password": "a-new-password"}, headers=customer).status_code == 403
+
+
+def register(client, email="new@example.com", password="a-new-password"):
+    return client.post("/api/register", json={"email": email, "name": "New Person", "password": password})
+
+
+def test_registering_creates_a_lasting_account_with_its_own_orders(client, store):
+    body = register(client, "New@Example.com").json()
+    assert body["user"]["email"] == "new@example.com"
+    assert body["user"]["demo"] is False and body["user"]["can_switch"] is True
+    assert store.get_order("A1001", "new@example.com")["item"] == "Standing desk"
+    assert client.post("/api/login", json={"email": "new@example.com", "password": "a-new-password"}).status_code == 200
+
+
+def test_registering_rejects_bad_input(client):
+    assert register(client, password="short").status_code == 422
+    assert client.post(
+        "/api/register", json={"email": "x@example.com", "name": "   ", "password": "a-new-password"}
+    ).status_code == 422
+    assert register(client, "not-an-email").status_code == 422
+
+
+def test_registering_cannot_take_an_existing_or_reserved_email(client):
+    assert register(client).status_code == 200
+    assert register(client, password="another-password").status_code == 409
+    assert client.post("/api/login", json={"email": "new@example.com", "password": "a-new-password"}).status_code == 200
+    assert register(client, "agent@example.com").status_code == 409
+    for email in ("demo@tendline.app", "support@tendline.app", "support-abc@tendline.app"):
+        assert register(client, email).status_code == 400
+
+
+def test_registered_account_sees_its_handoff_from_the_support_side(client, staff, llm):
+    customer = bearer(register(client).json())
+    llm.replies += [tool("escalate_to_human", reason="refund", summary="Refund")]
+    conversation_id = client.post("/api/chat", json={"message": "Refund"}, headers=customer).json()["conversation_id"]
+
+    switched = client.post("/api/me/switch", headers=customer).json()
+    assert switched["user"]["role"] == "staff" and switched["user"]["can_switch"] is True
+    agent = bearer(switched)
+    assert [i["conversation_id"] for i in client.get("/api/staff/escalations", headers=agent).json()] == [conversation_id]
+    assert client.post(
+        f"/api/staff/conversations/{conversation_id}/reply", json={"message": "Done"}, headers=agent
+    ).status_code == 200
+    assert client.get("/api/staff/escalations", headers=staff).json() == []
+
+    back = client.post("/api/me/switch", headers=agent).json()
+    assert back["user"]["email"] == "new@example.com"
+
+
+def test_registered_workspaces_stay_private(client, llm):
+    first = bearer(register(client, "one@example.com").json())
+    second = bearer(register(client, "two@example.com").json())
+    llm.replies += [tool("escalate_to_human", reason="refund", summary="Refund")]
+    conversation_id = client.post("/api/chat", json={"message": "Refund"}, headers=first).json()["conversation_id"]
+    outsider = bearer(client.post("/api/me/switch", headers=second).json())
+    assert client.get("/api/staff/escalations", headers=outsider).json() == []
+    assert client.get(f"/api/staff/conversations/{conversation_id}", headers=outsider).status_code == 404
+
+
+def test_only_registered_accounts_can_switch_view(client, sara, staff):
+    assert client.post("/api/me/switch", headers=sara).status_code == 404
+    assert client.post("/api/me/switch", headers=staff).status_code == 404
+    customer, demo_staff, _ = demo_pair(client)
+    assert client.post("/api/me/switch", headers=customer).status_code == 404
+    assert client.post("/api/me/switch", headers=demo_staff).status_code == 404
+    assert client.post("/api/me/switch").status_code == 401
+
+
+def test_support_side_of_a_registered_account_has_no_password(client):
+    customer = bearer(register(client).json())
+    agent = client.post("/api/me/switch", headers=customer).json()
+    assert agent["user"]["has_password"] is False
+    assert client.post(
+        "/api/me/password", json={"new_password": "a-new-password"}, headers=bearer(agent)
+    ).status_code == 403
+    assert client.post(
+        "/api/me/password", json={"current_password": "a-new-password", "new_password": "newer-password"}, headers=customer
+    ).status_code == 200
+
+
+def test_registered_accounts_survive_demo_cleanup(client, store, database_url):
+    register(client)
+    with psycopg.connect(database_url, autocommit=True) as db:
+        db.execute("UPDATE users SET created_at = now() - interval '30 days' WHERE permanent")
+    demo_pair(client)
+    assert client.post("/api/login", json={"email": "new@example.com", "password": "a-new-password"}).status_code == 200
+    with psycopg.connect(database_url, autocommit=True) as db:
+        assert db.execute("SELECT count(*) FROM users WHERE permanent").fetchone()[0] == 2
+
+
+def test_google_sign_in_removes_a_password_set_before_the_email_was_proven(store, llm, client):
+    assert register(client, "victim@gmail.com", "attacker-password").status_code == 200
+    body = google_client(store, llm, {"email": "victim@gmail.com", "email_verified": True}).post(
+        "/api/auth/google", json={"credential": "token"}
+    ).json()
+    assert body["user"]["has_password"] is False
+    assert client.post("/api/login", json={"email": "victim@gmail.com", "password": "attacker-password"}).status_code == 401
+
+
+def test_google_sign_in_keeps_a_password_set_afterwards(store, llm, client):
+    google = google_client(store, llm, {"email": "g@gmail.com", "email_verified": True})
+    headers = bearer(google.post("/api/auth/google", json={"credential": "token"}).json())
+    assert client.post("/api/me/password", json={"new_password": "a-new-password"}, headers=headers).status_code == 200
+    assert google.post("/api/auth/google", json={"credential": "token"}).json()["user"]["has_password"] is True
+
+
+def test_google_accounts_get_a_private_workspace(store, llm, staff, client):
+    google = google_client(store, llm, {"email": "g@gmail.com", "email_verified": True})
+    body = google.post("/api/auth/google", json={"credential": "token"}).json()
+    assert body["user"]["can_switch"] is True
+    llm.replies += [tool("escalate_to_human", reason="refund", summary="Refund")]
+    client.post("/api/chat", json={"message": "Refund"}, headers=bearer(body))
+    assert client.get("/api/staff/escalations", headers=staff).json() == []
+
+
+def test_registering_is_rate_limited(store, llm):
+    client = limited_client(store, llm, register=1)
+    assert register(client, "one@example.com").status_code == 200
+    blocked = register(client, "two@example.com")
+    assert blocked.status_code == 429 and blocked.json()["detail"] == "register limit"
 
 
 def limited_client(store, llm, behind_proxy=False, **rules):

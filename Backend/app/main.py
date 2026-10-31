@@ -3,13 +3,13 @@ import logging
 import queue
 import threading
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import Annotated, Literal
 
 import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, StringConstraints
 
 from .agent import HANDOFF_REPLY, SupportAgent
 from .config import load_settings
@@ -29,6 +29,8 @@ BUSY = "Too many requests. Please try again in a little while."
 # Name: (allowed hits, window, message). Kept in Postgres because serverless instances share no memory.
 RATE_LIMITS = {
     "login": (20, timedelta(minutes=15), "Too many sign-in attempts. Please try again in a few minutes."),
+    "register": (10, timedelta(hours=1), BUSY),
+    "register_all": (500, timedelta(days=1), "Sign-ups are full for today. Please try again tomorrow."),
     "demo": (20, timedelta(hours=1), BUSY),
     "demo_all": (1000, timedelta(days=1), "The demo is full for today. Please try again tomorrow."),
     "chat_user": (30, timedelta(hours=1), "You've sent a lot of messages. Please try again in a little while."),
@@ -53,6 +55,12 @@ def verify_google_token(credential, client_id):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=200)
+
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+    password: str = Field(min_length=8, max_length=200)
 
 
 class GoogleRequest(BaseModel):
@@ -83,7 +91,8 @@ def public_user(user):
         "role": user["role"],
         "name": user["name"],
         "has_password": user["has_password"],
-        "demo": user["workspace"] is not None,
+        "demo": user["workspace"] is not None and not user["permanent"],
+        "can_switch": user["workspace"] is not None and user["permanent"],
     }
 
 
@@ -232,6 +241,19 @@ def create_app(
             raise HTTPException(status_code=401, detail="Wrong email or password")
         return session_for(user)
 
+    @app.post("/api/register")
+    def register(body: RegisterRequest, request: Request):
+        enforce_limit("register", client_ip(request))
+        enforce_limit("register_all", "all")
+        email = body.email.lower()
+        # The demo logins and the generated workspace accounts all live on this domain.
+        if email.endswith("@tendline.app"):
+            raise HTTPException(status_code=400, detail="This email address can't be used.")
+        user = store.register(email, body.name, body.password)
+        if user is None:
+            raise HTTPException(status_code=409, detail="An account with this email already exists. Try signing in.")
+        return session_for(user)
+
     @app.post("/api/demo/session")
     def demo_session(body: DemoSessionRequest, request: Request):
         # Off unless DEMO_MODE is set, because it signs in without a password.
@@ -270,12 +292,19 @@ def create_app(
 
     @app.post("/api/me/password")
     def change_password(body: PasswordChange, user=Depends(current_user)):
-        if user["workspace"] is not None:
-            raise HTTPException(status_code=403, detail="Demo accounts have no password.")
+        if user["workspace"] is not None and (not user["permanent"] or user["role"] == "staff"):
+            raise HTTPException(status_code=403, detail="This account has no password.")
         if user["has_password"] and store.authenticate(user["email"], body.current_password or "") is None:
             raise HTTPException(status_code=400, detail="Your current password is not correct.")
         store.set_password(user["email"], body.new_password)
         return {"ok": True}
+
+    @app.post("/api/me/switch")
+    def switch_view(user=Depends(current_user)):
+        partner = store.workspace_partner(user) if user["workspace"] is not None and user["permanent"] else None
+        if partner is None:
+            raise HTTPException(status_code=404, detail="Not found")
+        return session_for(partner)
 
     @app.post("/api/chat")
     def chat(body: ChatRequest, request: Request, user=Depends(current_customer)):

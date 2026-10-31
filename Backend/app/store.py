@@ -18,7 +18,7 @@ RESOLVED_EVENT = "The support team closed this request. The AI assistant is back
 LOGIN_LOCK = timedelta(minutes=15)
 # Longer than a session token lasts, so nobody loses a workspace they are still using.
 DEMO_LIFETIME = timedelta(days=1)
-USER_FIELDS = "email, role, name, workspace, password_hash IS NOT NULL AS has_password"
+USER_FIELDS = "email, role, name, workspace, permanent, password_hash IS NOT NULL AS has_password"
 
 SCHEMA = f"""
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -84,6 +84,8 @@ CREATE INDEX IF NOT EXISTS doc_passages_search_idx ON doc_passages USING gin (se
 ALTER TABLE users ADD COLUMN IF NOT EXISTS workspace TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS permanent BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_pkey;
 ALTER TABLE orders ADD CONSTRAINT orders_pkey PRIMARY KEY (customer_email, id);
 CREATE TABLE IF NOT EXISTS rate_limits (
@@ -245,17 +247,52 @@ class Store:
         with self._connect() as db:
             db.execute("UPDATE users SET password_hash = %s WHERE email = %s", (hash_password(password), email))
 
+    def _add_account(self, db, email, name, password_hash, email_verified):
+        """Add a lasting customer with sample orders and their own support agent. False if the email is taken."""
+        workspace = secrets.token_hex(6)
+        created = db.execute(
+            "INSERT INTO users (email, password_hash, role, name, workspace, permanent, email_verified) "
+            "VALUES (%s, %s, 'customer', %s, %s, true, %s) ON CONFLICT (email) DO NOTHING RETURNING email",
+            (email, password_hash, name, workspace, email_verified),
+        ).fetchone()
+        if not created:
+            return False
+        db.execute(
+            "INSERT INTO users (email, role, name, workspace, permanent) VALUES (%s, 'staff', 'Support Agent', %s, true)",
+            (f"support-{workspace}@tendline.app", workspace),
+        )
+        self._add_sample_orders(db, email)
+        return True
+
+    def register(self, email, name, password):
+        """Create an account with a password, or return None if the email is taken."""
+        password_hash = hash_password(password)
+        with self._connect() as db:
+            if not self._add_account(db, email, name, password_hash, False):
+                return None
+            return db.execute(f"SELECT {USER_FIELDS} FROM users WHERE email = %s", (email,)).fetchone()
+
     def find_or_create_customer(self, email, name):
         """Return the account for a verified email, creating a passwordless customer if it is new."""
         with self._connect() as db:
-            created = db.execute(
-                "INSERT INTO users (email, role, name) VALUES (%s, 'customer', %s) "
-                "ON CONFLICT (email) DO NOTHING RETURNING email",
-                (email, name),
-            ).fetchone()
-            if created:
-                self._add_sample_orders(db, email)
+            if not self._add_account(db, email, name, None, True):
+                # Sign-up doesn't prove who owns an email, so a password set before this point may be a stranger's.
+                db.execute(
+                    "UPDATE users SET email_verified = true, "
+                    "password_hash = CASE WHEN email_verified THEN password_hash END "
+                    "WHERE email = %s AND role = 'customer'",
+                    (email,),
+                )
             return db.execute(f"SELECT {USER_FIELDS} FROM users WHERE email = %s", (email,)).fetchone()
+
+    def workspace_partner(self, user):
+        """The other account in a lasting workspace: the customer's agent, or the agent's customer."""
+        role = "staff" if user["role"] == "customer" else "customer"
+        with self._connect() as db:
+            return db.execute(
+                f"SELECT {USER_FIELDS} FROM users WHERE workspace = %s AND role = %s AND permanent",
+                (user["workspace"], role),
+            ).fetchone()
 
     def create_demo_workspace(self):
         """Create a private customer and staff member who can only see each other."""
@@ -275,14 +312,14 @@ class Store:
 
     @staticmethod
     def _delete_expired(db):
-        expired = "(SELECT email FROM users WHERE workspace IS NOT NULL AND created_at < %s)"
+        expired = "(SELECT email FROM users WHERE workspace IS NOT NULL AND NOT permanent AND created_at < %s)"
         cutoff = (datetime.now(timezone.utc) - DEMO_LIFETIME,)
         conversations = f"(SELECT id FROM conversations WHERE customer_email IN {expired})"
         for table in ("tool_calls", "messages", "escalations"):
             db.execute(f"DELETE FROM {table} WHERE conversation_id IN {conversations}", cutoff)
         db.execute(f"DELETE FROM conversations WHERE customer_email IN {expired}", cutoff)
         db.execute(f"DELETE FROM orders WHERE customer_email IN {expired}", cutoff)
-        db.execute("DELETE FROM users WHERE workspace IS NOT NULL AND created_at < %s", cutoff)
+        db.execute("DELETE FROM users WHERE workspace IS NOT NULL AND NOT permanent AND created_at < %s", cutoff)
         db.execute("DELETE FROM rate_limits WHERE expires_at < now()")
 
     def hit_rate_limit(self, key, limit, window):
