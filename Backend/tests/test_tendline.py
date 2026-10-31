@@ -535,6 +535,20 @@ def test_public_demo_logins_need_the_right_password_and_demo_mode(client, store,
     assert TestClient(app).post("/api/login", json=right).status_code == 401
 
 
+def test_cors_allows_only_the_configured_frontend(store, llm):
+    app = create_app(
+        store=store, llm=llm, embedder=HashEmbedder(), jwt_secret=SECRET, cors_origins=["https://app.example.com"]
+    )
+    client = TestClient(app)
+    preflight = {"Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization"}
+    allowed = client.options("/api/chat/stream", headers={"Origin": "https://app.example.com", **preflight})
+    assert allowed.status_code == 200
+    assert allowed.headers["access-control-allow-origin"] == "https://app.example.com"
+    assert "access-control-allow-credentials" not in allowed.headers
+    other = client.options("/api/chat/stream", headers={"Origin": "https://evil.example.com", **preflight})
+    assert "access-control-allow-origin" not in other.headers
+
+
 def test_demo_session_is_off_by_default(store, llm):
     app = create_app(store=store, llm=llm, embedder=HashEmbedder(), jwt_secret=SECRET)
     assert TestClient(app).post("/api/demo/session", json={"role": "staff"}).status_code == 404

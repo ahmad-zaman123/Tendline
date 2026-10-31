@@ -20,6 +20,7 @@ def load_settings():
         "chat_models": list(dict.fromkeys(m for m in (chat_model, fallback_model) if m)),
         "demo_mode": os.environ.get("DEMO_MODE") == "1",
         "google_client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
+        "cors_origins": [o.strip() for o in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()],
         # Vercel sets the client address itself. Elsewhere the header could be forged.
         "behind_proxy": bool(os.environ.get("VERCEL")),
     }

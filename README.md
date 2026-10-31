@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black&style=flat-square" alt="React 18" />
   <img src="https://img.shields.io/badge/pgvector-Postgres-4169E1?logo=postgresql&logoColor=white&style=flat-square" alt="pgvector" />
   <img src="https://img.shields.io/badge/Gemini-3.5%20Flash--Lite-8E75B2?logo=googlegemini&logoColor=white&style=flat-square" alt="Gemini" />
-  <img src="https://img.shields.io/badge/tests-61%20passing-2ea44f?style=flat-square" alt="61 tests passing" />
+  <img src="https://img.shields.io/badge/tests-62%20passing-2ea44f?style=flat-square" alt="62 tests passing" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT license" /></a>
 </p>
 
@@ -50,6 +50,7 @@ Run the backend and frontend in two terminals, backend first.
 **1. Backend** → `http://localhost:8020`
 
 ```bash
+cd Backend
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
 cp .env.example .env                # fill in the values
@@ -61,7 +62,7 @@ cp .env.example .env                # fill in the values
 **2. Frontend** → `http://localhost:5173`
 
 ```bash
-cd frontend
+cd Frontend
 npm install
 npm run dev
 ```
@@ -69,13 +70,14 @@ npm run dev
 **3. Tests**
 
 ```bash
+cd Backend
 .venv/bin/python -m pytest
 ```
 
 The tests run against a real local Postgres with a scripted model and embeddings, so they need no API key.
 
 <details>
-<summary><b>🔧 Environment variables</b> (<code>.env</code>)</summary>
+<summary><b>🔧 Environment variables</b> (<code>Backend/.env</code>)</summary>
 <br/>
 
 | Key | Required | Notes |
@@ -87,9 +89,10 @@ The tests run against a real local Postgres with a scripted model and embeddings
 | `DEMO_MODE` | no | `1` turns on `/demo`, one-click demo sign-in and the public demo logins. |
 | `GEMINI_CHAT_MODEL` | no | Defaults to `models/gemini-3.5-flash-lite`. |
 | `GEMINI_FALLBACK_MODEL` | no | Defaults to `models/gemini-3.1-flash-lite`. |
+| `CORS_ALLOWED_ORIGINS` | prod | The deployed frontend's address, comma-separated if more than one. |
 | `GOOGLE_CLIENT_ID` | no | Turns on "Continue with Google". See **Google sign-in** below. |
 
-Frontend: `VITE_GOOGLE_CLIENT_ID` is the same Google client ID, only needed for the Google button.
+Frontend (`Frontend/.env`): `VITE_API_URL` is the deployed backend's address, left empty locally because Vite proxies `/api`. `VITE_GOOGLE_CLIENT_ID` is the same Google client ID, only needed for the Google button.
 
 </details>
 
@@ -101,7 +104,7 @@ Adds a **Continue with Google** button to the sign-in page. New Google users get
 
 1. In [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials) create an **OAuth client ID** of type **Web application**. If asked, set up the consent screen first (External, app name, your email).
 2. Under **Authorized JavaScript origins** add your frontend origins, for example `http://localhost:5173` and `https://<your-app>.vercel.app`. No redirect URI is needed.
-3. Put the client ID in `GOOGLE_CLIENT_ID` **and** `VITE_GOOGLE_CLIENT_ID`, then redeploy. There is no client secret in this flow.
+3. Put the client ID in `GOOGLE_CLIENT_ID` (backend) **and** `VITE_GOOGLE_CLIENT_ID` (frontend), then redeploy both. There is no client secret in this flow.
 
 Leave both empty and the button is hidden.
 
@@ -221,28 +224,45 @@ Counters live in Postgres so they hold across serverless instances. Blocked requ
 ## 🗂️ Project structure
 
 ```
-tendline/
-├── app/
-│   ├── agent.py        tool loop, citations, hand-off rules
-│   ├── docs_index.py   splits and searches the help docs
-│   ├── ingest.py       creates tables and accounts, indexes the docs
-│   ├── llm.py          Gemini client with model fallback
-│   ├── main.py         API routes, auth, rate limits
-│   └── store.py        schema and every SQL query
-├── api/index.py        Vercel entry point
-├── data/docs/          the help docs the agent answers from
-├── frontend/           landing page, chat, staff console, split-screen demo
-├── scripts/dev_db.py   bundled local Postgres
-└── tests/              61 tests against a real Postgres
+Tendline/
+├── Backend/
+│   ├── api/index.py        Vercel entry point
+│   ├── app/
+│   │   ├── agent.py        tool loop, citations, hand-off rules
+│   │   ├── config.py       settings from the environment
+│   │   ├── docs_index.py   splits and searches the help docs
+│   │   ├── ingest.py       creates tables and accounts, indexes the docs
+│   │   ├── llm.py          Gemini client with model fallback
+│   │   ├── main.py         API routes, auth, rate limits
+│   │   └── store.py        schema and every SQL query
+│   ├── data/docs/          the help docs the agent answers from
+│   ├── scripts/dev_db.py   bundled local Postgres
+│   ├── tests/              62 tests against a real Postgres
+│   ├── asgi.py
+│   ├── requirements.txt
+│   └── vercel.json
+├── Frontend/
+│   ├── src/
+│   │   ├── components/     chat, staff console, ticket log, profile menu
+│   │   ├── pages/          landing, sign-in, workspace, split-screen demo
+│   │   ├── api.js          API client and streaming
+│   │   └── styles.css
+│   ├── package.json
+│   └── vercel.json
+└── docs/screenshots/
 ```
 
 ## ☁️ Deployment
 
-**Vercel** in `iad1`, next to a **Neon** database in `us-east-1`. `vercel.json` builds the frontend and routes `/api` to FastAPI.
+Two **Vercel** projects from this repo, plus a **Neon** database in `us-east-1`. The backend runs in `iad1`, next to the database.
 
-1. Run `python -m app.ingest` against the database. Repeat it after changing the help docs or schema.
-2. Set `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY` and `DEMO_MODE` in the Vercel project.
-3. Run `vercel --prod`.
+**1. Database:** from `Backend/`, run `python -m app.ingest` against it. Repeat after changing the help docs or schema.
+
+**2. Backend:** a Vercel project with **Root Directory** set to `Backend`. Set `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY` and `DEMO_MODE`.
+
+**3. Frontend:** a Vercel project with **Root Directory** set to `Frontend`. Set `VITE_API_URL` to the backend's address.
+
+**4. Connect them:** set `CORS_ALLOWED_ORIGINS` on the backend to the frontend's address, then redeploy the backend.
 
 ## 📄 License
 

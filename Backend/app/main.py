@@ -7,6 +7,7 @@ from typing import Literal
 
 import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
 
@@ -96,6 +97,7 @@ def create_app(
     verify_google=verify_google_token,
     behind_proxy=False,
     rate_limits=RATE_LIMITS,
+    cors_origins=(),
 ):
     if store is None:
         settings = load_settings()
@@ -106,9 +108,18 @@ def create_app(
         demo_mode = settings["demo_mode"]
         google_client_id = settings["google_client_id"]
         behind_proxy = settings["behind_proxy"]
+        cors_origins = settings["cors_origins"]
 
     agent = SupportAgent(llm, store, DocsIndex(store, embedder))
     app = FastAPI(title="Tendline", docs_url="/api/docs", openapi_url="/api/openapi.json")
+    # Sessions use a bearer token rather than cookies, so credentials stay off.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(cors_origins),
+        allow_methods=["GET", "POST"],
+        allow_headers=["Authorization", "Content-Type"],
+        expose_headers=["Retry-After"],
+    )
 
     def session_for(user):
         token = jwt.encode(

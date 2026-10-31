@@ -1,4 +1,6 @@
 const TOKEN_KEY = 'tendline-token'
+// Empty locally, where Vite proxies /api to the backend.
+const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
 
 export function getStoredToken() {
   try {
@@ -30,7 +32,7 @@ export function createClient(token) {
     const headers = {}
     if (token) headers.Authorization = `Bearer ${token}`
     if (body) headers['Content-Type'] = 'application/json'
-    return fetch(`/api${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
+    return fetch(`${API_URL}/api${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined })
   }
 
   async function json(path, options) {
