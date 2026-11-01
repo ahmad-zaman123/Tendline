@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black&style=flat-square" alt="React 18" />
   <img src="https://img.shields.io/badge/pgvector-Postgres-4169E1?logo=postgresql&logoColor=white&style=flat-square" alt="pgvector" />
   <img src="https://img.shields.io/badge/Gemini-3.5%20Flash--Lite-8E75B2?logo=googlegemini&logoColor=white&style=flat-square" alt="Gemini" />
-  <img src="https://img.shields.io/badge/tests-86%20passing-2ea44f?style=flat-square" alt="86 tests passing" />
+  <img src="https://img.shields.io/badge/tests-101%20passing-2ea44f?style=flat-square" alt="101 tests passing" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT license" /></a>
 </p>
 
@@ -100,6 +100,7 @@ The tests run against a real local Postgres with a scripted model and embeddings
 | `GEMINI_API_KEY` | **yes** | Chat and embeddings. |
 | `DEMO_PASSWORD` | ingest | Password for the local accounts. Only read by `app.ingest`. |
 | `DEMO_MODE` | no | `1` turns on `/demo`, one-click demo sign-in and the public demo logins. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM` | no | Sends password reset emails. Reset is off without `SMTP_USER` and `SMTP_PASSWORD`. Gmail works with an app password. |
 | `GEMINI_CHAT_MODEL` | no | Defaults to `models/gemini-3.5-flash-lite`. |
 | `GEMINI_FALLBACK_MODEL` | no | Defaults to `models/gemini-3.1-flash-lite`. |
 | `CORS_ALLOWED_ORIGINS` | prod | The deployed frontend's address, comma-separated if more than one. |
@@ -192,6 +193,8 @@ scrypt-hashed passwords, signed session tokens, separate customer and staff role
 ### 🧪 Private demos
 Every demo visitor gets their own customer and agent who can only see each other. Every staff route checks that workspace, so guessing a ticket ID gets nothing. Accounts from sign-up work the same way but last, with a menu item to switch between the customer and support views.
 
+Password reset links work once, expire in 15 minutes and are stored only as a hash. Using one ends every older session.
+
 </td>
 </tr>
 </table>
@@ -210,6 +213,7 @@ Interactive docs at **`/api/docs`**.
 | `POST /api/staff/conversations/<id>/reply` | Staff | Reply to the customer |
 | `POST /api/staff/escalations/<id>/resolve` | Staff | Close the ticket and return it to the AI |
 | `POST /api/register` | none | Create an account |
+| `POST /api/password/forgot`, `/api/password/reset` | none | Email a reset link, then use it |
 | `POST /api/login`, `/api/auth/google` | none | Sign in |
 | `GET /api/me`, `POST /api/me/password` | Signed in | Your account and password |
 | `POST /api/me/switch` | Signed-up accounts | Switch between your customer and support views |
@@ -221,6 +225,7 @@ Interactive docs at **`/api/docs`**.
 |---|---|
 | Sign-ins | 20 per 15 minutes, per IP address |
 | Sign-ups | 10 per hour per IP address, 500 per day overall |
+| Reset emails | 10 per hour per IP address, 3 per hour per email address, 200 per day overall |
 | New demo workspaces | 20 per hour per IP address, 1,000 per day overall |
 | Chat messages | 30 per hour per user and 60 per hour per IP address. Messages the AI answers also share a limit of 300 per day overall. |
 | Staff replies | 60 per hour, per agent |
@@ -253,7 +258,7 @@ Tendline/
 │   │   └── store.py        schema and every SQL query
 │   ├── data/docs/          the help docs the agent answers from
 │   ├── scripts/dev_db.py   bundled local Postgres
-│   ├── tests/              86 tests against a real Postgres
+│   ├── tests/              101 tests against a real Postgres
 │   ├── asgi.py
 │   ├── requirements.txt
 │   └── vercel.json
@@ -274,7 +279,7 @@ Two **Vercel** projects from this repo, plus a **Neon** database in `us-east-1`.
 
 **1. Database:** from `Backend/`, run `python -m app.ingest` against it. Repeat after changing the help docs or schema.
 
-**2. Backend:** a Vercel project with **Root Directory** set to `Backend`. Set `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY` and `DEMO_MODE`.
+**2. Backend:** a Vercel project with **Root Directory** set to `Backend`. Set `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY` and `DEMO_MODE`, plus the `SMTP_` settings and `EMAIL_FROM` for password reset.
 
 **3. Frontend:** a Vercel project with **Root Directory** set to `Frontend`. Set `VITE_API_URL` to the backend's address.
 
