@@ -81,6 +81,7 @@ export default function Login({ user, notice, home, onSignIn }) {
               placeholder={isRegister ? 'At least 8 characters' : undefined}
             />
           </label>
+          {!isRegister && <Link to="/forgot-password" className="link-btn auth-forgot">Forgot password?</Link>}
           {notice && !error && <div className="error-banner" role="status">{notice}</div>}
           {error && <div className="error-banner" role="alert">{error}</div>}
           <button className="btn primary" type="submit" disabled={busy}>{busy ? 'One moment…' : isRegister ? 'Create account' : 'Sign in'}</button>

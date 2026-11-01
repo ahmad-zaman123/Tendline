@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { createClient, getStoredToken, storeToken } from './api.js'
 import Demo from './pages/Demo.jsx'
+import ForgotPassword from './pages/ForgotPassword.jsx'
 import Landing from './pages/Landing.jsx'
 import Login from './pages/Login.jsx'
+import ResetPassword from './pages/ResetPassword.jsx'
 import Workspace from './pages/Workspace.jsx'
 
 const homeFor = (user) => (user.role === 'staff' ? '/staff' : '/chat')
@@ -48,6 +50,13 @@ export default function App() {
     navigate(homeFor(session.user))
   }
 
+  /** A password change ends older sessions, so the page carries on with the token it returned. */
+  function renewSession(session) {
+    storeToken(session.token)
+    setToken(session.token)
+    setUser(session.user)
+  }
+
   function signOut() {
     storeToken(null)
     setToken(null)
@@ -81,7 +90,7 @@ export default function App() {
         user={user}
         onSignOut={signOut}
         onSwitchView={switchView}
-        onUserChanged={() => client.get('/me').then(setUser).catch(() => {})}
+        onSessionRenewed={renewSession}
       />
     )
   }
@@ -91,6 +100,8 @@ export default function App() {
       <Route path="/" element={<Landing user={user} checking={checking} home={user && homeFor(user)} onSignOut={signOut} />} />
       <Route path="/demo" element={<Demo onSignOut={signOut} />} />
       <Route path="/login" element={<Login user={user} notice={notice} onSignIn={signIn} home={user && homeFor(user)} />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/chat" element={gated('customer')} />
       <Route path="/staff" element={gated('staff')} />
       <Route path="*" element={<Navigate to="/" replace />} />

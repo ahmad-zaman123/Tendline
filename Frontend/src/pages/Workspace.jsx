@@ -5,7 +5,7 @@ import ProfileMenu from '../components/ProfileMenu.jsx'
 import StaffConsole from '../components/StaffConsole.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 
-export default function Workspace({ client, user, onSignOut, onSwitchView, onUserChanged }) {
+export default function Workspace({ client, user, onSignOut, onSwitchView, onSessionRenewed }) {
   const staff = user.role === 'staff'
 
   useEffect(() => { document.title = `${staff ? 'Support queue' : 'Support'} — Tendline` }, [staff])
@@ -20,8 +20,7 @@ export default function Workspace({ client, user, onSignOut, onSwitchView, onUse
             user={user}
             onSignOut={onSignOut}
             onSwitchView={onSwitchView}
-            changePassword={(payload) => client.post('/me/password', payload)}
-            onPasswordChanged={onUserChanged}
+            changePassword={(payload) => client.post('/me/password', payload).then(onSessionRenewed)}
           />
         </div>
       </header>
