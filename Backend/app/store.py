@@ -16,9 +16,10 @@ EMBEDDING_DIMENSIONS = 768
 MAX_FAILED_LOGINS = 5
 RESOLVED_EVENT = "The support team closed this request. The AI assistant is back."
 LOGIN_LOCK = timedelta(minutes=15)
+RESET_TOKEN_LIFETIME = timedelta(minutes=15)
 # Longer than a session token lasts, so nobody loses a workspace they are still using.
 DEMO_LIFETIME = timedelta(days=1)
-USER_FIELDS = "email, role, name, workspace, permanent, password_hash IS NOT NULL AS has_password"
+USER_FIELDS = "email, role, name, workspace, permanent, password_changed_at, password_hash IS NOT NULL AS has_password"
 
 SCHEMA = f"""
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -86,6 +87,12 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAU
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS permanent BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ;
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token_hash TEXT PRIMARY KEY,
+    email TEXT NOT NULL REFERENCES users(email) ON DELETE CASCADE,
+    expires_at TIMESTAMPTZ NOT NULL
+);
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_pkey;
 ALTER TABLE orders ADD CONSTRAINT orders_pkey PRIMARY KEY (customer_email, id);
 CREATE TABLE IF NOT EXISTS rate_limits (
@@ -145,6 +152,10 @@ def verify_password(password, stored):
     salt, digest = stored.split(":")
     candidate = hashlib.scrypt(password.encode(), salt=bytes.fromhex(salt), n=2**14, r=8, p=1)
     return hmac.compare_digest(candidate.hex(), digest)
+
+
+def _token_hash(token):
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 # Compared against when the email is unknown, so response time doesn't reveal which accounts exist.
@@ -243,9 +254,57 @@ class Store:
                 (order_id, email, item, status, date.today() - timedelta(days=age_days), tracking),
             )
 
+    @staticmethod
+    def _end_sessions(db, email):
+        """Make tokens issued before now stop working, including those of the account's support view."""
+        db.execute(
+            "UPDATE users SET password_changed_at = %(now)s WHERE email = %(email)s "
+            "OR workspace = (SELECT workspace FROM users WHERE email = %(email)s)",
+            {"now": datetime.now(timezone.utc), "email": email},
+        )
+
     def set_password(self, email, password):
         with self._connect() as db:
             db.execute("UPDATE users SET password_hash = %s WHERE email = %s", (hash_password(password), email))
+            self._end_sessions(db, email)
+
+    def create_reset_token(self, email):
+        """Return a new single-use reset token, or None if this account can't use one."""
+        token = secrets.token_urlsafe(32)
+        with self._connect() as db:
+            # Demo accounts and the support side of a workspace have no password to reset.
+            user = db.execute(
+                "SELECT email FROM users WHERE email = %s AND (workspace IS NULL OR (permanent AND role = 'customer'))",
+                (email,),
+            ).fetchone()
+            if user is None:
+                return None
+            db.execute("DELETE FROM password_reset_tokens WHERE email = %s OR expires_at < now()", (email,))
+            # Only a hash is stored, so reading the database doesn't give anyone a working link.
+            db.execute(
+                "INSERT INTO password_reset_tokens (token_hash, email, expires_at) VALUES (%s, %s, %s)",
+                (_token_hash(token), email, datetime.now(timezone.utc) + RESET_TOKEN_LIFETIME),
+            )
+        return token
+
+    def reset_password(self, token, password):
+        """Use up a reset token to set a new password. False if the token is invalid or expired."""
+        password_hash = hash_password(password)
+        with self._connect() as db:
+            row = db.execute(
+                "DELETE FROM password_reset_tokens WHERE token_hash = %s RETURNING email, expires_at > now() AS valid",
+                (_token_hash(token),),
+            ).fetchone()
+            if row is None or not row["valid"]:
+                return False
+            # The link reached this inbox, which proves who owns the email.
+            db.execute(
+                "UPDATE users SET password_hash = %s, email_verified = true, failed_logins = 0, locked_until = NULL "
+                "WHERE email = %s",
+                (password_hash, row["email"]),
+            )
+            self._end_sessions(db, row["email"])
+        return True
 
     def _add_account(self, db, email, name, password_hash, email_verified):
         """Add a lasting customer with sample orders and their own support agent. False if the email is taken."""
@@ -276,13 +335,17 @@ class Store:
         """Return the account for a verified email, creating a passwordless customer if it is new."""
         with self._connect() as db:
             if not self._add_account(db, email, name, None, True):
-                # Sign-up doesn't prove who owns an email, so a password set before this point may be a stranger's.
-                db.execute(
-                    "UPDATE users SET email_verified = true, "
-                    "password_hash = CASE WHEN email_verified THEN password_hash END "
-                    "WHERE email = %s AND role = 'customer'",
+                existing = db.execute(
+                    "SELECT email_verified, password_hash FROM users WHERE email = %s AND role = 'customer' FOR UPDATE",
                     (email,),
-                )
+                ).fetchone()
+                if existing and not existing["email_verified"]:
+                    # Sign-up doesn't prove who owns an email, so a password set before this point may be a stranger's.
+                    db.execute(
+                        "UPDATE users SET email_verified = true, password_hash = NULL WHERE email = %s", (email,)
+                    )
+                    if existing["password_hash"]:
+                        self._end_sessions(db, email)
             return db.execute(f"SELECT {USER_FIELDS} FROM users WHERE email = %s", (email,)).fetchone()
 
     def workspace_partner(self, user):

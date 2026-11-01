@@ -632,6 +632,157 @@ def test_daily_ai_limit_does_not_stop_messages_to_the_team(store, llm):
     assert blocked.status_code == 429 and blocked.json()["detail"] == "chat_all limit"
 
 
+class FakeMail:
+    def __init__(self):
+        self.sent = []
+
+    def __call__(self, to, subject, text, action_label, action_url):
+        self.sent.append(SimpleNamespace(to=to, url=action_url))
+
+    def token(self):
+        return self.sent[-1].url.split("token=")[1]
+
+
+@pytest.fixture
+def mail():
+    return FakeMail()
+
+
+@pytest.fixture
+def reset_client(store, llm, mail):
+    return TestClient(create_app(
+        store=store, llm=llm, embedder=HashEmbedder(), jwt_secret=SECRET, demo_mode=True,
+        send_email=mail, app_url="https://app.example",
+    ))
+
+
+def forgot(client, email="sara@example.com"):
+    return client.post("/api/password/forgot", json={"email": email})
+
+
+def test_reset_replies_the_same_for_known_and_unknown_emails(reset_client, mail):
+    known, unknown = forgot(reset_client), forgot(reset_client, "nobody@example.com")
+    assert known.status_code == unknown.status_code == 200
+    assert known.json() == unknown.json()
+    assert [m.to for m in mail.sent] == ["sara@example.com"]
+    assert mail.sent[0].url.startswith("https://app.example/reset-password?token=")
+
+
+def test_reset_link_ignores_forged_host_headers(reset_client, mail):
+    reset_client.post("/api/password/forgot", json={"email": "sara@example.com"}, headers={"Host": "evil.example", "Origin": "https://evil.example"})
+    assert "evil.example" not in mail.sent[0].url
+
+
+def test_reset_changes_the_password_and_works_once(reset_client, mail):
+    forgot(reset_client)
+    body = {"token": mail.token(), "new_password": "a-brand-new-password"}
+    assert reset_client.post("/api/password/reset", json=body).status_code == 200
+    assert reset_client.post("/api/login", json={"email": "sara@example.com", "password": "a-brand-new-password"}).status_code == 200
+    assert reset_client.post("/api/login", json={"email": "sara@example.com", "password": PASSWORD}).status_code == 401
+    again = reset_client.post("/api/password/reset", json={**body, "new_password": "another-password"})
+    assert again.status_code == 400
+
+
+def test_reset_token_is_not_stored_in_the_clear(reset_client, mail, database_url):
+    forgot(reset_client)
+    with psycopg.connect(database_url) as db:
+        stored = db.execute("SELECT token_hash FROM password_reset_tokens").fetchone()[0]
+    assert stored != mail.token() and mail.token() not in stored
+
+
+def test_expired_and_invalid_reset_tokens_are_refused(reset_client, mail, database_url):
+    forgot(reset_client)
+    with psycopg.connect(database_url, autocommit=True) as db:
+        db.execute("UPDATE password_reset_tokens SET expires_at = now() - interval '1 minute'")
+    body = {"token": mail.token(), "new_password": "a-brand-new-password"}
+    assert reset_client.post("/api/password/reset", json=body).status_code == 400
+    assert reset_client.post("/api/password/reset", json={**body, "token": "made-up"}).status_code == 400
+    assert reset_client.post("/api/login", json={"email": "sara@example.com", "password": PASSWORD}).status_code == 200
+
+
+def test_a_new_reset_link_replaces_the_old_one(reset_client, mail):
+    forgot(reset_client)
+    old = mail.token()
+    forgot(reset_client)
+    assert reset_client.post("/api/password/reset", json={"token": old, "new_password": "a-brand-new-password"}).status_code == 400
+    assert reset_client.post("/api/password/reset", json={"token": mail.token(), "new_password": "a-brand-new-password"}).status_code == 200
+
+
+def test_reset_ends_older_sessions_including_the_support_view(reset_client, mail):
+    customer = bearer(register(reset_client).json())
+    agent = bearer(reset_client.post("/api/me/switch", headers=customer).json())
+    time.sleep(1.1)
+    forgot(reset_client, "new@example.com")
+    assert reset_client.post("/api/password/reset", json={"token": mail.token(), "new_password": "a-brand-new-password"}).status_code == 200
+    assert reset_client.get("/api/me", headers=customer).status_code == 401
+    assert reset_client.get("/api/me", headers=agent).status_code == 401
+    fresh = reset_client.post("/api/login", json={"email": "new@example.com", "password": "a-brand-new-password"}).json()
+    assert reset_client.get("/api/me", headers=bearer(fresh)).status_code == 200
+
+
+def test_changing_a_password_keeps_this_session_and_ends_the_others(client, sara):
+    other = login(client, "sara@example.com")
+    time.sleep(1.1)
+    renewed = client.post("/api/me/password", json={"current_password": PASSWORD, "new_password": "a-brand-new-password"}, headers=sara)
+    assert renewed.status_code == 200
+    assert client.get("/api/me", headers=bearer(renewed.json())).status_code == 200
+    assert client.get("/api/me", headers=other).status_code == 401
+
+
+def test_reset_clears_an_account_lock(reset_client, mail):
+    for _ in range(MAX_FAILED_LOGINS):
+        reset_client.post("/api/login", json={"email": "sara@example.com", "password": "wrong-password"})
+    forgot(reset_client)
+    reset_client.post("/api/password/reset", json={"token": mail.token(), "new_password": "a-brand-new-password"})
+    assert reset_client.post("/api/login", json={"email": "sara@example.com", "password": "a-brand-new-password"}).status_code == 200
+
+
+def test_reset_proves_ownership_so_google_keeps_the_new_password(reset_client, store, llm, mail):
+    register(reset_client, "owner@gmail.com")
+    forgot(reset_client, "owner@gmail.com")
+    reset_client.post("/api/password/reset", json={"token": mail.token(), "new_password": "a-brand-new-password"})
+    body = google_client(store, llm, {"email": "owner@gmail.com", "email_verified": True}).post("/api/auth/google", json={"credential": "token"}).json()
+    assert body["user"]["has_password"] is True
+
+
+def test_google_sign_in_ends_a_strangers_session(store, llm, client):
+    stranger = bearer(register(client, "victim@gmail.com", "attacker-password").json())
+    time.sleep(1.1)
+    google_client(store, llm, {"email": "victim@gmail.com", "email_verified": True}).post("/api/auth/google", json={"credential": "token"})
+    assert client.get("/api/me", headers=stranger).status_code == 401
+
+
+def test_demo_and_support_view_accounts_get_no_reset_link(reset_client, mail):
+    customer, staff_side, _ = demo_pair(reset_client)
+    forgot(reset_client, reset_client.get("/api/me", headers=customer).json()["email"])
+    forgot(reset_client, reset_client.get("/api/me", headers=staff_side).json()["email"])
+    owner = bearer(register(reset_client).json())
+    support = reset_client.post("/api/me/switch", headers=owner).json()["user"]["email"]
+    forgot(reset_client, support)
+    assert mail.sent == []
+
+
+def test_a_mail_failure_gives_the_same_reply(store, llm):
+    def broken(*args):
+        raise OSError("smtp down")
+
+    client = TestClient(create_app(store=store, llm=llm, embedder=HashEmbedder(), jwt_secret=SECRET, send_email=broken))
+    response = forgot(client)
+    assert response.status_code == 200 and response.json()["detail"] == forgot(client, "nobody@example.com").json()["detail"]
+
+
+def test_reset_is_off_without_a_mail_service(client):
+    assert forgot(client).status_code == 503
+
+
+def test_reset_emails_are_limited_per_address_without_revealing_it(store, llm, mail):
+    limits = {**RATE_LIMITS, "reset_email": (1, timedelta(hours=1), "x")}
+    client = TestClient(create_app(store=store, llm=llm, embedder=HashEmbedder(), jwt_secret=SECRET, send_email=mail, rate_limits=limits))
+    assert forgot(client).status_code == 200
+    assert forgot(client).status_code == 200
+    assert len(mail.sent) == 1
+
+
 def limited_client(store, llm, behind_proxy=False, **rules):
     limits = {**RATE_LIMITS, **{name: (hits, timedelta(hours=1), f"{name} limit") for name, hits in rules.items()}}
     app = create_app(
