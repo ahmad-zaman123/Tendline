@@ -710,6 +710,7 @@ def test_reset_email_has_plain_and_styled_parts_and_escapes_text(monkeypatch):
     plain = sent[0].get_body(preferencelist=("plain",)).get_content()
     html = sent[0].get_body(preferencelist=("html",)).get_content()
     assert sent[0]["From"] == "Tendline <user@example.com>"
+    assert sent[0]["X-Entity-Ref-ID"]
     assert mailer.named_sender("Support <user@example.com>") == "Support <user@example.com>"
     assert 'src="https://app.example/email-logo.png"' in html
     assert f"Go: {url}" in plain and "Soon. Ignore it." in plain

@@ -1,4 +1,5 @@
 import smtplib
+import uuid
 from email.message import EmailMessage
 from email.utils import formataddr, parseaddr
 from html import escape
@@ -69,6 +70,8 @@ def smtp_sender(host, port, user, password, sender, logo_url):
         message["Subject"] = subject
         message["From"] = named_sender(sender)
         message["To"] = to
+        # A unique value keeps Gmail from grouping repeat emails and hiding the button as quoted text.
+        message["X-Entity-Ref-ID"] = str(uuid.uuid4())
         message.set_content(f"{heading}\n\n{text}\n\n{action_label}: {action_url}\n\n{note_lead} {note}\n")
         message.add_alternative(
             render_html(heading, text, action_label, action_url, note_lead, note, logo_url), subtype="html"
