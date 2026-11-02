@@ -702,13 +702,15 @@ def test_reset_email_has_plain_and_styled_parts_and_escapes_text(monkeypatch):
 
     monkeypatch.setattr(mailer.smtplib, "SMTP", FakeSMTP)
     send = mailer.smtp_sender(
-        "smtp.example", 587, "user", "pass", "Tendline <user@example.com>", "https://app.example/email-logo.png"
+        "smtp.example", 587, "user", "pass", "user@example.com", "https://app.example/email-logo.png"
     )
     url = "https://app.example/reset-password?token=a&b"
     send("sara@example.com", "Subject", "Heading", "For <b>you</b>", "Go", url, "Soon.", "Ignore it.")
 
     plain = sent[0].get_body(preferencelist=("plain",)).get_content()
     html = sent[0].get_body(preferencelist=("html",)).get_content()
+    assert sent[0]["From"] == "Tendline <user@example.com>"
+    assert mailer.named_sender("Support <user@example.com>") == "Support <user@example.com>"
     assert 'src="https://app.example/email-logo.png"' in html
     assert f"Go: {url}" in plain and "Soon. Ignore it." in plain
     assert "For &lt;b&gt;you&lt;/b&gt;" in html and "<b>you" not in html

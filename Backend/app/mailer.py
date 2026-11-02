@@ -1,5 +1,6 @@
 import smtplib
 from email.message import EmailMessage
+from email.utils import formataddr, parseaddr
 from html import escape
 
 SMTP_TIMEOUT_SECONDS = 10
@@ -54,13 +55,19 @@ def render_html(heading, text, action_label, action_url, note_lead, note, logo_u
 """
 
 
+def named_sender(sender):
+    """The sending address, always under a project name so the inbox shows who it's from."""
+    name, address = parseaddr(sender)
+    return formataddr((name or "Tendline", address))
+
+
 def smtp_sender(host, port, user, password, sender, logo_url):
     """Return a function that sends one email with a single call-to-action link."""
 
     def send(to, subject, heading, text, action_label, action_url, note_lead, note):
         message = EmailMessage()
         message["Subject"] = subject
-        message["From"] = sender
+        message["From"] = named_sender(sender)
         message["To"] = to
         message.set_content(f"{heading}\n\n{text}\n\n{action_label}: {action_url}\n\n{note_lead} {note}\n")
         message.add_alternative(
