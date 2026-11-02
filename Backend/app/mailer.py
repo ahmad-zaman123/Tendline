@@ -41,7 +41,6 @@ def render_html(heading, text, action_label, action_url, note_lead, note):
         </td>
       </tr></table>
       <p style="margin:26px 0 0; padding-top:16px; border-top:1px solid #dedbcf; font-family:{FONT}; font-size:13px; line-height:1.6; color:#625f54;"><strong style="color:#a85800;">{note_lead}</strong> {note}</p>
-      <p style="margin:12px 0 0; font-family:{FONT}; font-size:12px; line-height:1.5; color:#625f54; word-break:break-all;">Button not working? Paste this link into your browser:<br><a href="{url}" target="_blank" style="color:#0b6657;">{url}</a></p>
     </td></tr>
     <tr><td align="center" style="padding:20px 4px 0; font-family:{FONT}; font-size:12px; line-height:1.6; color:#625f54;">
       Tendline: AI support with a person one step away<br>This is an automated message, so replies aren&rsquo;t read.
