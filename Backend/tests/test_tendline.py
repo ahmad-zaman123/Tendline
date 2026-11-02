@@ -168,6 +168,23 @@ def test_problems_every_model_would_share_skip_the_fallback(code):
     assert calls == ["primary"]
 
 
+def test_every_model_is_tried_in_order():
+    down = errors.ClientError(429, {"error": {"message": "rate limit"}})
+    gemini, calls = gemini_with(down, down, down, GEMINI_OK)
+    gemini.models = ["first", "second", "third", "fourth"]
+    assert gemini.complete("system", USER_TURN, []).text == "Hi."
+    assert calls == ["first", "second", "third", "fourth"]
+
+
+def test_no_new_model_starts_after_the_deadline(monkeypatch):
+    clock = iter([0, 21])
+    monkeypatch.setattr("app.llm.time.monotonic", lambda: next(clock))
+    gemini, calls = gemini_with(httpx.ReadTimeout("timed out"), GEMINI_OK)
+    with pytest.raises(httpx.ReadTimeout):
+        gemini.complete("system", USER_TURN, [])
+    assert calls == ["primary"]
+
+
 def test_healthy_primary_never_calls_the_fallback():
     gemini, calls = gemini_with(GEMINI_OK)
     gemini.complete("system", USER_TURN, [])

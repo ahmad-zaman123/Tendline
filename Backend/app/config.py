@@ -13,6 +13,8 @@ def load_settings():
         raise RuntimeError(f"Missing required settings: {', '.join(missing)}")
     chat_model = os.environ.get("GEMINI_CHAT_MODEL", "models/gemini-3.5-flash-lite")
     fallback_model = os.environ.get("GEMINI_FALLBACK_MODEL", "models/gemini-3.1-flash-lite")
+    # Each model has its own daily limit, so these keep the demo answering after the first two run out.
+    extra_models = ("models/gemini-2.5-flash-lite", "models/gemini-2.5-flash")
     cors_origins = [o.strip() for o in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()]
     smtp_user = os.environ.get("SMTP_USER", "")
     smtp_password = os.environ.get("SMTP_PASSWORD", "")
@@ -20,7 +22,7 @@ def load_settings():
         "database_url": os.environ["DATABASE_URL"],
         "jwt_secret": os.environ["JWT_SECRET"],
         "gemini_api_key": os.environ["GEMINI_API_KEY"],
-        "chat_models": list(dict.fromkeys(m for m in (chat_model, fallback_model) if m)),
+        "chat_models": list(dict.fromkeys(m for m in (chat_model, fallback_model, *extra_models) if m)),
         "demo_mode": os.environ.get("DEMO_MODE") == "1",
         "google_client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
         "cors_origins": cors_origins,

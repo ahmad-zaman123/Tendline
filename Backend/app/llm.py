@@ -1,4 +1,5 @@
 import logging
+import time
 from dataclasses import dataclass, field
 
 import httpx
@@ -10,6 +11,8 @@ from .store import EMBEDDING_DIMENSIONS
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT_MS = 15_000
+# No new model starts once this much of the reply's time has gone.
+MODEL_DEADLINE_SECONDS = 20
 EMBEDDING_ATTEMPTS = 2
 EMBEDDING_MODEL = "models/gemini-embedding-001"
 # Retired model, or this model's rate limit. A bad key or request would fail on any model.
@@ -56,13 +59,15 @@ class GeminiClient:
 
     def _generate(self, contents, config):
         last_model = self.models[-1]
+        started = time.monotonic()
         for model in self.models:
             try:
                 return self.client.models.generate_content(
                     model=model, contents=contents, config=config
                 )
             except Exception as error:
-                if model == last_model or not _can_use_fallback(error):
+                out_of_time = time.monotonic() - started >= MODEL_DEADLINE_SECONDS
+                if model == last_model or out_of_time or not _can_use_fallback(error):
                     raise
                 logger.warning("Model %s failed (%s), trying the next one", model, error)
 

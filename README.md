@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black&style=flat-square" alt="React 18" />
   <img src="https://img.shields.io/badge/pgvector-Postgres-4169E1?logo=postgresql&logoColor=white&style=flat-square" alt="pgvector" />
   <img src="https://img.shields.io/badge/Gemini-3.5%20Flash--Lite-8E75B2?logo=googlegemini&logoColor=white&style=flat-square" alt="Gemini" />
-  <img src="https://img.shields.io/badge/tests-102%20passing-2ea44f?style=flat-square" alt="102 tests passing" />
+  <img src="https://img.shields.io/badge/tests-104%20passing-2ea44f?style=flat-square" alt="104 tests passing" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT license" /></a>
 </p>
 
@@ -101,7 +101,7 @@ The tests run against a real local Postgres with a scripted model and embeddings
 | `DEMO_MODE` | no | `1` turns on `/demo`, one-click demo sign-in and the public demo logins. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM` | no | Sends password reset emails. Reset is off without `SMTP_USER` and `SMTP_PASSWORD`. Gmail works with an app password. |
 | `GEMINI_CHAT_MODEL` | no | Defaults to `models/gemini-3.5-flash-lite`. |
-| `GEMINI_FALLBACK_MODEL` | no | Defaults to `models/gemini-3.1-flash-lite`. |
+| `GEMINI_FALLBACK_MODEL` | no | Defaults to `models/gemini-3.1-flash-lite`. `models/gemini-2.5-flash-lite` and `models/gemini-2.5-flash` are tried after it. |
 | `CORS_ALLOWED_ORIGINS` | prod | The deployed frontend's address, comma-separated if more than one. |
 | `GOOGLE_CLIENT_ID` | no | Turns on "Continue with Google". See **Google sign-in** below. |
 
@@ -257,7 +257,7 @@ Tendline/
 │   │   └── store.py        schema and every SQL query
 │   ├── data/docs/          the help docs the agent answers from
 │   ├── scripts/dev_db.py   bundled local Postgres
-│   ├── tests/              102 tests against a real Postgres
+│   ├── tests/              104 tests against a real Postgres
 │   ├── asgi.py
 │   ├── requirements.txt
 │   └── vercel.json
