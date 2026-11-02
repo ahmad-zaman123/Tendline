@@ -7,11 +7,12 @@ SMTP_TIMEOUT_SECONDS = 10
 FONT = "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
 
-def render_html(heading, text, action_label, action_url, note_lead, note):
+def render_html(heading, text, action_label, action_url, note_lead, note, logo_url):
     """Lay out one email in Tendline's colours, using tables so it holds up in every mail client."""
     heading, text = escape(heading), escape(text)
     label, url = escape(action_label), escape(action_url, quote=True)
     note_lead, note = escape(note_lead), escape(note)
+    logo_url = escape(logo_url, quote=True)
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,7 +29,7 @@ def render_html(heading, text, action_label, action_url, note_lead, note):
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%; max-width:480px;">
     <tr><td style="padding:0 4px 22px;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-        <td width="28" height="28" align="center" style="width:28px; height:28px; background-color:#0b6657; border-radius:7px; font-family:{FONT}; font-size:15px; font-weight:700; line-height:28px; color:#ffffff;">T</td>
+        <td width="28" height="28" align="center" style="width:28px; height:28px; font-family:{FONT}; font-size:15px; font-weight:700; line-height:28px; color:#0b6657;"><img src="{logo_url}" width="28" height="28" alt="T" style="display:block; width:28px; height:28px; border:0;"></td>
         <td style="padding-left:9px; font-family:{FONT}; font-size:17px; font-weight:700; color:#1b1a15;">Tendline</td>
       </tr></table>
     </td></tr>
@@ -53,7 +54,7 @@ def render_html(heading, text, action_label, action_url, note_lead, note):
 """
 
 
-def smtp_sender(host, port, user, password, sender):
+def smtp_sender(host, port, user, password, sender, logo_url):
     """Return a function that sends one email with a single call-to-action link."""
 
     def send(to, subject, heading, text, action_label, action_url, note_lead, note):
@@ -62,7 +63,9 @@ def smtp_sender(host, port, user, password, sender):
         message["From"] = sender
         message["To"] = to
         message.set_content(f"{heading}\n\n{text}\n\n{action_label}: {action_url}\n\n{note_lead} {note}\n")
-        message.add_alternative(render_html(heading, text, action_label, action_url, note_lead, note), subtype="html")
+        message.add_alternative(
+            render_html(heading, text, action_label, action_url, note_lead, note, logo_url), subtype="html"
+        )
         with smtplib.SMTP(host, port, timeout=SMTP_TIMEOUT_SECONDS) as smtp:
             smtp.starttls()
             smtp.login(user, password)

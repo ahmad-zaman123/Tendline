@@ -34,6 +34,7 @@ def load_settings():
             "user": smtp_user,
             "password": smtp_password,
             "sender": os.environ.get("EMAIL_FROM") or smtp_user,
+            "logo_url": f"{cors_origins[0] if cors_origins else 'http://localhost:5173'}/email-logo.png",
         },
         # Vercel sets the client address itself. Elsewhere the header could be forged.
         "behind_proxy": bool(os.environ.get("VERCEL")),
