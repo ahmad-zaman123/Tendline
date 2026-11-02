@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black&style=flat-square" alt="React 18" />
   <img src="https://img.shields.io/badge/pgvector-Postgres-4169E1?logo=postgresql&logoColor=white&style=flat-square" alt="pgvector" />
   <img src="https://img.shields.io/badge/Gemini-3.5%20Flash--Lite-8E75B2?logo=googlegemini&logoColor=white&style=flat-square" alt="Gemini" />
-  <img src="https://img.shields.io/badge/tests-101%20passing-2ea44f?style=flat-square" alt="101 tests passing" />
+  <img src="https://img.shields.io/badge/tests-102%20passing-2ea44f?style=flat-square" alt="102 tests passing" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT license" /></a>
 </p>
 
@@ -26,8 +26,7 @@
   <a href="#-how-it-works">How it works</a> ·
   <a href="#-features">Features</a> ·
   <a href="#-api">API</a> ·
-  <a href="#-limits">Limits</a> ·
-  <a href="#-deployment">Deployment</a>
+  <a href="#-limits">Limits</a>
 </p>
 
 <p align="center">
@@ -258,7 +257,7 @@ Tendline/
 │   │   └── store.py        schema and every SQL query
 │   ├── data/docs/          the help docs the agent answers from
 │   ├── scripts/dev_db.py   bundled local Postgres
-│   ├── tests/              101 tests against a real Postgres
+│   ├── tests/              102 tests against a real Postgres
 │   ├── asgi.py
 │   ├── requirements.txt
 │   └── vercel.json
@@ -272,18 +271,6 @@ Tendline/
 │   └── vercel.json
 └── docs/screenshots/
 ```
-
-## ☁️ Deployment
-
-Two **Vercel** projects from this repo, plus a **Neon** database in `us-east-1`. The backend runs in `iad1`, next to the database.
-
-**1. Database:** from `Backend/`, run `python -m app.ingest` against it. Repeat after changing the help docs or schema.
-
-**2. Backend:** a Vercel project with **Root Directory** set to `Backend`. Set `DATABASE_URL`, `JWT_SECRET`, `GEMINI_API_KEY` and `DEMO_MODE`, plus the `SMTP_` settings and `EMAIL_FROM` for password reset.
-
-**3. Frontend:** a Vercel project with **Root Directory** set to `Frontend`. Set `VITE_API_URL` to the backend's address.
-
-**4. Connect them:** set `CORS_ALLOWED_ORIGINS` on the backend to the frontend's address, then redeploy the backend.
 
 ## 📄 License
 
