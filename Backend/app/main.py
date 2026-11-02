@@ -366,10 +366,13 @@ def create_app(
                 send_email(
                     email,
                     "Reset your Tendline password",
-                    "Someone asked to reset the password for this Tendline account. "
-                    "The link expires in 15 minutes. If it wasn't you, you can ignore this email.",
+                    "Reset your password",
+                    f"Someone asked to reset the password for the Tendline account {email}. "
+                    "Use the button below to choose a new one.",
                     "Choose a new password",
                     f"{app_url}/reset-password?token={token}",
+                    "Expires in 15 minutes.",
+                    "If this wasn't you, you can ignore this email and your password won't change.",
                 )
             except Exception:
                 logger.exception("Could not send a password reset email")

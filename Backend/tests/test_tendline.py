@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 from google.genai import errors
 
+from app import mailer
 from app.agent import HANDOFF_REPLY, MAX_STEPS
 from app.config import BASE_DIR
 from app.docs_index import DocsIndex, ingest
@@ -636,7 +637,7 @@ class FakeMail:
     def __init__(self):
         self.sent = []
 
-    def __call__(self, to, subject, text, action_label, action_url):
+    def __call__(self, to, subject, heading, text, action_label, action_url, note_lead, note):
         self.sent.append(SimpleNamespace(to=to, url=action_url))
 
     def token(self):
@@ -658,6 +659,40 @@ def reset_client(store, llm, mail):
 
 def forgot(client, email="sara@example.com"):
     return client.post("/api/password/forgot", json={"email": email})
+
+
+def test_reset_email_has_plain_and_styled_parts_and_escapes_text(monkeypatch):
+    sent = []
+
+    class FakeSMTP:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def starttls(self):
+            pass
+
+        def login(self, user, password):
+            pass
+
+        def send_message(self, message):
+            sent.append(message)
+
+    monkeypatch.setattr(mailer.smtplib, "SMTP", FakeSMTP)
+    send = mailer.smtp_sender("smtp.example", 587, "user", "pass", "Tendline <user@example.com>")
+    url = "https://app.example/reset-password?token=a&b"
+    send("sara@example.com", "Subject", "Heading", "For <b>you</b>", "Go", url, "Soon.", "Ignore it.")
+
+    plain = sent[0].get_body(preferencelist=("plain",)).get_content()
+    html = sent[0].get_body(preferencelist=("html",)).get_content()
+    assert f"Go: {url}" in plain and "Soon. Ignore it." in plain
+    assert "For &lt;b&gt;you&lt;/b&gt;" in html and "<b>you" not in html
+    assert 'href="https://app.example/reset-password?token=a&amp;b"' in html
 
 
 def test_reset_replies_the_same_for_known_and_unknown_emails(reset_client, mail):
