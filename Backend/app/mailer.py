@@ -34,7 +34,7 @@ def render_html(heading, text, action_label, action_url, note_lead, note):
     </td></tr>
     <tr><td style="background-color:#faf8f1; border:1px solid #c9c5b7; border-radius:12px; padding:34px 32px;">
       <h1 style="margin:0 0 12px; font-family:{FONT}; font-size:22px; font-weight:700; line-height:1.3; color:#1b1a15;">{heading}</h1>
-      <p style="margin:0 0 26px; font-family:{FONT}; font-size:15px; line-height:1.6; color:#625f54;">{text}</p>
+      <p style="margin:0 0 26px; font-family:{FONT}; font-size:15px; line-height:1.6; color:#625f54; word-break:break-word; overflow-wrap:anywhere;">{text}</p>
       <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
         <td style="background-color:#0b6657; border-radius:8px;">
           <a href="{url}" target="_blank" style="display:inline-block; padding:12px 22px; font-family:{FONT}; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">{label}</a>
