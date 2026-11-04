@@ -272,6 +272,11 @@ Tendline/
 └── docs/screenshots/
 ```
 
+## ☁️ Deployment & CI
+
+- **Vercel**, as two projects from this repo: `Backend` (serverless Python) and `Frontend` (Vite). Postgres with pgvector is on Neon; run `app.ingest` once against it to create the tables and index the docs.
+- **CI** (`ci.yml`) runs the backend tests against a real Postgres and the frontend build on every push and pull request.
+
 ## 📄 License
 
 [MIT](LICENSE) © 2026 Ahmad Zaman
