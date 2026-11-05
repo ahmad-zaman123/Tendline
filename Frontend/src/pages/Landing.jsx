@@ -1,10 +1,26 @@
-import { useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { demoErrorMessage, demoTokens } from '../demoSession.js'
 import Brand from '../components/Brand.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 
 export default function Landing({ user, checking, home, onSignOut }) {
   useEffect(() => { document.title = 'Tendline — AI support with a person one step away' }, [])
+  const navigate = useNavigate()
+  const [demoBusy, setDemoBusy] = useState(false)
+  const [demoError, setDemoError] = useState('')
+
+  async function startDemo() {
+    setDemoError('')
+    setDemoBusy(true)
+    try {
+      await demoTokens()
+      navigate('/demo')
+    } catch (err) {
+      setDemoError(demoErrorMessage(err))
+      setDemoBusy(false)
+    }
+  }
 
   return (
     <div className="landing">
@@ -26,11 +42,14 @@ export default function Landing({ user, checking, home, onSignOut }) {
             handle to your team, with the full history attached.
           </p>
           <div className="landing-cta">
-            <Link to="/demo" className="btn primary">Try the live demo</Link>
+            <button type="button" className="btn primary" onClick={startDemo} disabled={demoBusy}>
+              {demoBusy ? 'Setting up your demo…' : 'Try the live demo'}
+            </button>
             {!checking && (user
               ? <Link to={home} className="btn outline">Open the app</Link>
               : <Link to="/login" className="btn outline">Sign in</Link>)}
           </div>
+          {demoError && <div className="error-banner" role="alert">{demoError}</div>}
           <dl className="landing-steps">
             <div><dt>Answers</dt><dd>From your docs only, showing the passage it used.</dd></div>
             <div><dt>Checks</dt><dd>Orders for the signed-in customer, and nobody else.</dd></div>

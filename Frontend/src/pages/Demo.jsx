@@ -1,41 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { createClient, publicClient } from '../api.js'
+import { createClient } from '../api.js'
+import { clearDemoTokens, demoErrorMessage, demoTokens } from '../demoSession.js'
 import Brand from '../components/Brand.jsx'
 import CustomerChat from '../components/CustomerChat.jsx'
 import StaffConsole from '../components/StaffConsole.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
-
-const STORAGE_KEY = 'tendline-demo'
-
-function storedTokens() {
-  try {
-    return JSON.parse(sessionStorage.getItem(STORAGE_KEY))
-  } catch {
-    return null
-  }
-}
-
-async function loadTokens() {
-  const stored = storedTokens()
-  if (stored && await createClient(stored.staff).get('/me').catch(() => null)) return stored
-  const pair = await publicClient.post('/demo/pair')
-  const tokens = { customer: pair.customer.token, staff: pair.staff.token }
-  try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(tokens))
-  } catch {
-    // Without storage a reload just starts a new workspace.
-  }
-  return tokens
-}
-
-let pendingTokens = null
-
-/** Reuses this tab's private workspace, so a reload doesn't lose the chat or use up the limit. */
-function demoTokens() {
-  pendingTokens ??= loadTokens().finally(() => { pendingTokens = null })
-  return pendingTokens
-}
 
 export default function Demo({ onSignOut }) {
   const [tokens, setTokens] = useState(null)
@@ -50,23 +20,15 @@ export default function Demo({ onSignOut }) {
     let current = true
     demoTokens()
       .then((next) => { if (current) setTokens(next) })
-      .catch((err) => { if (current) setError(err.status === 429 ? err.message : 'The demo is not available right now.') })
+      .catch((err) => { if (current) setError(demoErrorMessage(err)) })
     return () => { current = false }
   }, [attempt])
-
-  function clearStored() {
-    try {
-      sessionStorage.removeItem(STORAGE_KEY)
-    } catch {
-      // Nothing was stored, so there is nothing to clear.
-    }
-  }
 
   const clients = useMemo(() => {
     if (!tokens) return null
     // An expired demo has nothing worth keeping, so a new one takes its place.
     const restart = () => {
-      clearStored()
+      clearDemoTokens()
       setTokens(null)
       setAttempt((count) => count + 1)
     }
@@ -74,7 +36,7 @@ export default function Demo({ onSignOut }) {
   }, [tokens])
 
   function signOut() {
-    clearStored()
+    clearDemoTokens()
     onSignOut()
   }
 

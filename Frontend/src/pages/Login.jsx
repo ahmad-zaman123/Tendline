@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, Navigate, useLocation } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { publicClient } from '../api.js'
+import { demoErrorMessage, demoTokens } from '../demoSession.js'
 import Brand from '../components/Brand.jsx'
 import GoogleButton from '../components/GoogleButton.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 
 export default function Login({ user, notice, home, onSignIn }) {
   const { state } = useLocation()
+  const navigate = useNavigate()
   const [isRegister, setIsRegister] = useState(Boolean(state?.register))
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -41,7 +43,17 @@ export default function Login({ user, notice, home, onSignIn }) {
       : publicClient.post('/login', { email, password })))
   }
 
-  const demo = (role) => run(() => publicClient.post('/demo/session', { role }))
+  async function startDemo() {
+    setError('')
+    setBusy(true)
+    try {
+      await demoTokens()
+      navigate('/demo')
+    } catch (err) {
+      setError(demoErrorMessage(err))
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="auth-page">
@@ -89,10 +101,7 @@ export default function Login({ user, notice, home, onSignIn }) {
             <button type="button" className="link-btn" onClick={() => { setError(''); setIsRegister(!isRegister) }}>
               {isRegister ? 'Already have an account? Sign in' : 'New here? Create an account'}
             </button>
-            <span>Just looking around?</span>
-            <button type="button" className="link-btn" onClick={() => demo('customer')} disabled={busy}>Try it as a customer</button>
-            <button type="button" className="link-btn" onClick={() => demo('staff')} disabled={busy}>Try it as a support agent</button>
-            <Link to="/demo" className="link-btn">See both side by side</Link>
+            <button type="button" className="link-btn" onClick={startDemo} disabled={busy}>Try the live demo</button>
           </div>
         </form>
       </main>
