@@ -31,13 +31,6 @@ https://github.com/user-attachments/assets/770c048f-c13c-4c01-ba97-5ad4f71fb9c9
   <a href="#-limits">Limits</a>
 </p>
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/handoff-dark.png" />
-    <img src="docs/screenshots/handoff.png" alt="The split-screen demo: a customer's refund request handed to the support team, who reply with the AI's actions listed beside the conversation" width="860" />
-  </picture>
-</p>
-
 ---
 
 ## 🧭 What is Tendline?
