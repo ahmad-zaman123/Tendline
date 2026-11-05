@@ -21,6 +21,8 @@
   <sub>Click <b>Try the live demo</b> to play the customer and the support team side by side. No sign-up needed.</sub>
 </p>
 
+https://github.com/user-attachments/assets/73a98096-6ca3-4d17-9372-3d69f6d49eda
+
 <p align="center">
   <a href="#-quick-start">Quick start</a> ·
   <a href="#-how-it-works">How it works</a> ·
