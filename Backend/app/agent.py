@@ -66,7 +66,7 @@ TOOL_DECLARATIONS = [
         "parameters": {
             "type": "OBJECT",
             "properties": {
-                "reason": {"type": "STRING"},
+                "reason": {"type": "STRING", "description": "One short plain-English sentence for the support team, such as 'Customer requested a refund for order A1001.'"},
                 "summary": {"type": "STRING", "description": "What the team needs to know."},
             },
             "required": ["reason", "summary"],

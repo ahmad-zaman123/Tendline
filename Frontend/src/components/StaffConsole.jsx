@@ -10,6 +10,16 @@ const SYSTEM_REASONS = {
   step_limit: 'The AI took too many steps',
 }
 
+/** The AI sometimes writes the reason as a code like customer_refund_request; show it as words. */
+function reasonText(reason) {
+  if (SYSTEM_REASONS[reason]) return SYSTEM_REASONS[reason]
+  if (/^[a-z]+(_[a-z]+)+$/.test(reason || '')) {
+    const words = reason.replace(/_/g, ' ')
+    return words.charAt(0).toUpperCase() + words.slice(1)
+  }
+  return reason
+}
+
 function waited(createdAt, now) {
   const minutes = Math.floor((now - new Date(createdAt).getTime()) / 60000)
   if (minutes < 1) return 'Just now'
@@ -127,7 +137,7 @@ export default function StaffConsole({ client, refreshSignal }) {
                   <strong>{item.customer_name}</strong>
                   <time dateTime={item.created_at}>{waited(item.created_at, now)}</time>
                 </span>
-                <span className="queue-reason">{SYSTEM_REASONS[item.reason] || item.reason}</span>
+                <span className="queue-reason">{reasonText(item.reason)}</span>
                 {item.last_role === 'user' && <span className="status status-waiting">Customer wrote again</span>}
               </button>
             </li>
