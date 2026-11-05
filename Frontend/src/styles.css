@@ -91,7 +91,7 @@ ul, ol { list-style: none; }
 /* ---------- brand and controls ---------- */
 .brand {
   display: inline-flex; align-items: center; gap: 0.55rem;
-  font-family: var(--display); font-weight: 600; font-size: 1.12rem; letter-spacing: -0.01em;
+  font-family: var(--display); font-weight: 700; font-size: 1.12rem; letter-spacing: -0.01em;
   color: var(--ink); text-decoration: none;
 }
 .logo-mark { flex: none; }
@@ -176,7 +176,7 @@ ul, ol { list-style: none; }
   width: min(26rem, 100%); padding: 2rem; display: flex; flex-direction: column; gap: 1rem;
   background: var(--page); border: 1px solid var(--rule); border-top: 3px solid var(--ink); border-radius: 3px;
 }
-.auth-card h1 { font-family: var(--display); font-size: 1.9rem; font-weight: 500; line-height: 1.15; letter-spacing: -0.02em; }
+.auth-card h1 { font-family: var(--display); font-size: 1.9rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; }
 .auth-subtitle { margin-top: -0.4rem; color: var(--muted); }
 .field { display: flex; flex-direction: column; gap: 0.35rem; font-weight: 600; font-size: 0.88rem; }
 .field input {
@@ -303,7 +303,7 @@ ul, ol { list-style: none; }
 /* ---------- starters ---------- */
 .starter { flex: 1; min-height: 0; overflow-y: auto; padding: clamp(1.25rem, 5vh, 3rem) clamp(1rem, 3vw, 1.5rem); max-width: 44rem; width: 100%; }
 .starter-org { color: var(--muted); font-family: var(--mono); font-size: 0.8rem; margin-bottom: 0.4rem; }
-.starter h2 { font-family: var(--display); font-size: clamp(1.6rem, 3vw, 2.1rem); font-weight: 500; letter-spacing: -0.02em; line-height: 1.12; margin-bottom: 1.1rem; }
+.starter h2 { font-family: var(--display); font-size: clamp(1.6rem, 3vw, 2.1rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.12; margin-bottom: 1.1rem; }
 .starter-list { border-top: 1px solid var(--rule); }
 .starter-list li { border-bottom: 1px solid var(--rule); }
 .starter-list button {
@@ -328,7 +328,7 @@ ul, ol { list-style: none; }
 /* ---------- staff console ---------- */
 .console { flex-direction: row; }
 .queue { width: 19rem; flex: none; min-height: 0; overflow-y: auto; border-right: 1px solid var(--rule); padding: 1rem; }
-.queue-title { font-family: var(--display); font-size: 1.1rem; font-weight: 600; padding-bottom: 0.55rem; border-bottom: 2px solid var(--ink); display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.queue-title { font-family: var(--display); font-size: 1.1rem; font-weight: 700; padding-bottom: 0.55rem; border-bottom: 2px solid var(--ink); display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
 .count { font-family: var(--mono); font-weight: 500; font-size: 0.9rem; color: var(--muted); }
 .queue-empty { padding-top: 0.8rem; color: var(--muted); font-size: 0.9rem; }
 .queue-list li { border-bottom: 1px solid var(--rule); }
@@ -349,7 +349,7 @@ ul, ol { list-style: none; }
 .case-empty { padding: 1.5rem; color: var(--muted); }
 .pane > .case-empty { flex: 1; }
 .case-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex: none; padding: 0.85rem clamp(1rem, 3vw, 1.5rem); border-bottom: 1px solid var(--rule); }
-.case-head h2 { font-size: 1rem; font-weight: 600; overflow-wrap: anywhere; }
+.case-head h2 { font-size: 1rem; font-weight: 700; overflow-wrap: anywhere; }
 .case-head p { color: var(--muted); font-size: 0.9rem; }
 
 .audit { flex: none; padding: 0.6rem clamp(1rem, 3vw, 1.5rem) 0.8rem; border-top: 1px solid var(--rule-soft); font-size: 0.88rem; }

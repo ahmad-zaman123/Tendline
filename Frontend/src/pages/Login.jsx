@@ -63,7 +63,7 @@ export default function Login({ user, notice, home, onSignIn }) {
       </header>
       <main className="auth-screen">
         <form className="auth-card" onSubmit={submit}>
-          <h1>{isRegister ? 'Set up your desk' : 'Back to the desk'}</h1>
+          <h1>{isRegister ? 'Set up your desk.' : 'Back to the desk.'}</h1>
           <p className="auth-subtitle">
             {isRegister
               ? 'Your own account, with sample orders and a private support view to try hand-offs.'

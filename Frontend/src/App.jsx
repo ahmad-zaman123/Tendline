@@ -75,7 +75,7 @@ export default function App() {
       return (
         <main className="auth-screen">
           <div className="auth-card">
-            <h1>Can&apos;t reach the server</h1>
+            <h1>Can&apos;t reach the server.</h1>
             <p className="auth-subtitle">You&apos;re still signed in. Check your connection and try again.</p>
             <button type="button" className="btn primary" onClick={() => setAttempt((count) => count + 1)}>Try again</button>
           </div>
