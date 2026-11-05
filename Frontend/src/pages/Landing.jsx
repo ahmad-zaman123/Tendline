@@ -36,7 +36,7 @@ export default function Landing({ user, checking, home, onSignOut }) {
 
       <main className="landing-main">
         <div>
-          <h1 className="landing-title">AI support that knows when to hand off.</h1>
+          <h1 className="landing-title">AI support that knows when to hand off</h1>
           <p className="landing-lede">
             Tendline answers from your help docs, checks real orders and passes anything it shouldn&apos;t
             handle to your team, with the full history attached.

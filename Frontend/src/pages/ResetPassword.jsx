@@ -41,7 +41,7 @@ export default function ResetPassword() {
       </header>
       <main className="auth-screen">
         <form className="auth-card" onSubmit={submit}>
-          <h1>{done ? 'Password changed.' : 'Choose a new password.'}</h1>
+          <h1>{done ? 'Password changed' : 'Choose a new password'}</h1>
           {done ? (
             <p className="auth-subtitle" role="status">You can now sign in with it. Any other devices have been signed out.</p>
           ) : (
